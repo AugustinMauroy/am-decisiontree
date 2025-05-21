@@ -1,0 +1,12 @@
+{
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
+	"name": "@am/decisiontree",
+	"description": "A simple decision tree implementation for JavaScript and TypeScript.",
+	"version": "0.0.0",
+	"license": "MIT",
+	"exports": {},
+	"publish": {
+		"include": ["LICENSE", "README.md", "src/**/*.ts", "jsr.json"],
+		"exclude": ["src/**/*.test.ts"]
+	}
+}

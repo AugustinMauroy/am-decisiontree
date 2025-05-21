@@ -1,0 +1,13 @@
+# Node
+node_modules
+
+# OSX
+.DS_Store
+
+# Test
+coverage.lcov
+
+# Examples datasets
+examples/cifar-10-batches-bin
+examples/cifar-100-binary
+examples/mnist-dataset
