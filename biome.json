@@ -19,8 +19,8 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
-			"complexity": {
-				"noStaticOnlyClass": "warn"
+			"style": {
+				"noNonNullAssertion": "off"
 			}
 		}
 	},
