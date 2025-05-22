@@ -4,34 +4,90 @@ import { calculateEntropy } from "./criteria/entropy.ts";
 import { calculateMSE } from "./criteria/mse_criterion.ts";
 import { calculateMAE } from "./criteria/mae_criterion.ts";
 
+/**
+ * Supported criteria for splitting nodes in the decision tree.
+ */
 export type Criterion = "gini" | "entropy" | "mse" | "mae";
+
+/**
+ * Input feature matrix where each row represents a sample and each column represents a feature.
+ */
 export type XInput = number[][];
+
+/**
+ * Target values for classification tasks. Can be numbers or strings.
+ */
 export type YInputClassification = (number | string)[];
+
+/**
+ * Target values for regression tasks. Must be numbers.
+ */
 export type YInputRegression = number[];
+
+/**
+ * General target values for both classification and regression tasks.
+ */
 export type YInput = YInputClassification | YInputRegression;
 
+/**
+ * Parameters for configuring the decision tree.
+ */
 export interface DecisionTreeParameters<Y_TYPE extends YInput> {
+	/** The criterion used to measure the quality of a split. */
 	criterion?: Criterion;
+
+	/** The maximum depth of the tree. Defaults to unlimited depth. */
 	maxDepth?: number;
+
+	/** The minimum number of samples required to split an internal node. */
 	minSamplesSplit?: number;
+
+	/** The minimum number of samples required to be at a leaf node. */
 	minSamplesLeaf?: number;
+
+	/** The minimum impurity decrease required to perform a split. */
 	minImpurityDecrease?: number;
 }
 
+/**
+ * Abstract base class for decision trees.
+ * @template X_IN - The type of the input feature matrix.
+ * @template Y_IN - The type of the target values.
+ * @template P_OUT - The type of the predicted output values.
+ */
 abstract class BaseDecisionTree<
 	X_IN extends XInput,
 	Y_IN extends YInput,
 	P_OUT extends NodeValue,
 > {
+	/** The root node of the decision tree. */
 	protected root?: Node<P_OUT>;
+
+	/** The criterion used to measure the quality of a split. */
 	protected criterion: Criterion;
+
+	/** The maximum depth of the tree. */
 	protected maxDepth: number;
+
+	/** The minimum number of samples required to split an internal node. */
 	protected minSamplesSplit: number;
+
+	/** The minimum number of samples required to be at a leaf node. */
 	protected minSamplesLeaf: number;
+
+	/** The minimum impurity decrease required to perform a split. */
 	protected minImpurityDecrease: number;
+
+	/** The number of features in the input data. */
 	protected nFeatures?: number;
+
+	/** The importance of each feature in the decision tree. */
 	protected featureImportances_?: number[];
 
+	/**
+	 * Creates a new instance of a decision tree.
+	 * @param params - The parameters to configure the decision tree.
+	 */
 	constructor(params: DecisionTreeParameters<Y_IN> = {}) {
 		this.criterion = params.criterion || this.getDefaultCriterion();
 		this.maxDepth =
@@ -48,10 +104,28 @@ abstract class BaseDecisionTree<
 				: params.minImpurityDecrease;
 	}
 
+	/**
+	 * Returns the default criterion for the decision tree.
+	 */
 	protected abstract getDefaultCriterion(): Criterion;
+
+	/**
+	 * Calculates the impurity of the target values.
+	 * @param y - The target values.
+	 */
 	protected abstract calculateImpurity(y: Y_IN): number;
+
+	/**
+	 * Calculates the predicted value for a leaf node.
+	 * @param y - The target values.
+	 */
 	protected abstract calculateLeafValue(y: Y_IN): P_OUT;
 
+	/**
+	 * Fits the decision tree to the given data.
+	 * @param X - The input feature matrix.
+	 * @param y - The target values.
+	 */
 	public fit(X: X_IN, y: Y_IN): void {
 		if (X.length !== y.length) {
 			throw new Error("X and y must have the same number of samples.");
@@ -68,6 +142,12 @@ abstract class BaseDecisionTree<
 		this.root = this._buildTree(X, y, 0);
 	}
 
+	/**
+	 * Recursively builds the decision tree.
+	 * @param X - The input feature matrix.
+	 * @param y - The target values.
+	 * @param depth - The current depth of the tree.
+	 */
 	private _buildTree(X: X_IN, y: Y_IN, depth: number): Node<P_OUT> {
 		const nSamples = X.length;
 		const currentImpurity = this.calculateImpurity(y);
@@ -131,6 +211,12 @@ abstract class BaseDecisionTree<
 		});
 	}
 
+	/**
+	 * Finds the best split for the given data.
+	 * @param X - The input feature matrix.
+	 * @param y - The target values.
+	 * @param parentImpurity - The impurity of the parent node.
+	 */
 	private _findBestSplit(
 		X: X_IN,
 		y: Y_IN,
@@ -217,6 +303,11 @@ abstract class BaseDecisionTree<
 			: null;
 	}
 
+	/**
+	 * Predicts the output for a single sample.
+	 * @param sample - The input sample.
+	 * @param node - The current node in the tree.
+	 */
 	protected _predictSample(sample: number[], node?: Node<P_OUT>): P_OUT {
 		if (!node) {
 			throw new Error("Tree is not fitted yet or root node is undefined.");
@@ -290,13 +381,21 @@ abstract class BaseDecisionTree<
 	}
 }
 
+/**
+ * A decision tree classifier for classification tasks.
+ */
 export class DecisionTreeClassifier extends BaseDecisionTree<
 	XInput,
 	YInputClassification,
 	Record<string | number, number>
 > {
+	/** The unique classes in the target values. */
 	private uniqueClasses_?: (string | number)[];
 
+	/**
+	 * Creates a new instance of a decision tree classifier.
+	 * @param params - The parameters to configure the classifier.
+	 */
 	constructor(params: DecisionTreeParameters<YInputClassification> = {}) {
 		super(params);
 		if (this.criterion === "mse" || this.criterion === "mae") {
@@ -304,10 +403,17 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		}
 	}
 
+	/**
+	 * Returns the default criterion for the classifier.
+	 */
 	protected getDefaultCriterion(): Criterion {
 		return "gini";
 	}
 
+	/**
+	 * Calculates the impurity of the target values for classification.
+	 * @param y - The target values.
+	 */
 	protected calculateImpurity(y: YInputClassification): number {
 		if (this.criterion === "gini") {
 			return calculateGiniImpurity(y);
@@ -320,6 +426,10 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		);
 	}
 
+	/**
+	 * Calculates the predicted value for a leaf node in classification.
+	 * @param y - The target values.
+	 */
 	protected calculateLeafValue(
 		y: YInputClassification,
 	): Record<string | number, number> {
@@ -338,6 +448,11 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		return probabilities;
 	}
 
+	/**
+	 * Fits the classifier to the given data.
+	 * @param X - The input feature matrix.
+	 * @param y - The target values.
+	 */
 	public fit(X: XInput, y: YInputClassification): void {
 		this.uniqueClasses_ = [...new Set(y)].sort((a, b) =>
 			String(a).localeCompare(String(b)),
@@ -345,6 +460,10 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		super.fit(X, y);
 	}
 
+	/**
+	 * Predicts the class labels for the given input data.
+	 * @param X - The input feature matrix.
+	 */
 	public predict(X: XInput): (string | number)[] {
 		if (!this.root) throw new Error("Tree is not fitted yet.");
 		const probaPredictions = X.map((sample) =>
@@ -392,6 +511,10 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		});
 	}
 
+	/**
+	 * Predicts the class probabilities for the given input data.
+	 * @param X - The input feature matrix.
+	 */
 	public predictProba(X: XInput): number[][] {
 		if (!this.root) throw new Error("Tree is not fitted yet.");
 		if (!this.uniqueClasses_) {
@@ -426,7 +549,10 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		});
 	}
 
-	// Basic static method to load a model. Error handling and validation should be more robust.
+	/**
+	 * Loads a decision tree classifier from a JSON string.
+	 * @param jsonString - The JSON string representing the classifier.
+	 */
 	public static fromJSON(jsonString: string): DecisionTreeClassifier {
 		const obj = JSON.parse(jsonString);
 		if (obj.type !== "classifier") {
@@ -452,11 +578,18 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 	}
 }
 
+/**
+ * A decision tree regressor for regression tasks.
+ */
 export class DecisionTreeRegressor extends BaseDecisionTree<
 	XInput,
 	YInputRegression,
 	number
 > {
+	/**
+	 * Creates a new instance of a decision tree regressor.
+	 * @param params - The parameters to configure the regressor.
+	 */
 	constructor(params: DecisionTreeParameters<YInputRegression> = {}) {
 		super(params);
 		if (this.criterion === "gini" || this.criterion === "entropy") {
@@ -464,10 +597,17 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 		}
 	}
 
+	/**
+	 * Returns the default criterion for the regressor.
+	 */
 	protected getDefaultCriterion(): Criterion {
 		return "mse";
 	}
 
+	/**
+	 * Calculates the impurity of the target values for regression.
+	 * @param y - The target values.
+	 */
 	protected calculateImpurity(y: YInputRegression): number {
 		if (this.criterion === "mse") {
 			return calculateMSE(y);
@@ -478,6 +618,10 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 		throw new Error(`Unsupported criterion for regression: ${this.criterion}`);
 	}
 
+	/**
+	 * Calculates the predicted value for a leaf node in regression.
+	 * @param y - The target values.
+	 */
 	protected calculateLeafValue(y: YInputRegression): number {
 		if (y.length === 0) {
 			// Or throw error, or return NaN. Depends on desired behavior for empty leaf.
@@ -486,6 +630,10 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 		return y.reduce((sum, val) => sum + val, 0) / y.length;
 	}
 
+	/**
+	 * Predicts the target values for the given input data.
+	 * @param X - The input feature matrix.
+	 */
 	public predict(X: XInput): number[] {
 		if (!this.root) throw new Error("Tree is not fitted yet.");
 		return X.map((sample) => this._predictSample(sample, this.root));
@@ -510,7 +658,10 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 		});
 	}
 
-	// Basic static method to load a model.
+	/**
+	 * Loads a decision tree regressor from a JSON string.
+	 * @param jsonString - The JSON string representing the regressor.
+	 */
 	public static fromJSON(jsonString: string): DecisionTreeRegressor {
 		const obj = JSON.parse(jsonString);
 		if (obj.type !== "regressor") {
