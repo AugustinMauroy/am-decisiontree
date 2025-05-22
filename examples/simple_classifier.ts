@@ -69,10 +69,8 @@ console.log(
 	`Probabilities for ${X_single_B}: Class A: ${prob_B[0][0].toFixed(2)}, Class B: ${prob_B[0][1].toFixed(2)}`,
 );
 
-
 // 7. Evaluate the model
 const y_test: string[] = ["A", "A", "B", "B"];
 const accuracy = accuracyScore(y_test, predictions);
 console.log("Accuracy of the model:", accuracy.toFixed(2)); // Expected: 1.00 (or close to it)
 console.log("---");
-
