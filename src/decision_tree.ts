@@ -11,8 +11,9 @@ export type Criterion = "gini" | "entropy" | "mse" | "mae";
 
 /**
  * Represents a single feature value, which can be numerical or categorical.
+ * Can be `null` to indicate a missing value.
  */
-export type FeatureValue = number | string;
+export type FeatureValue = number | string | null;
 
 /**
  * Input feature matrix where each row represents a sample and each column represents a feature.
@@ -312,7 +313,7 @@ abstract class BaseDecisionTree<
 	private _findBestSplit(
 		X: X_IN,
 		y: Y_IN,
-		parentImpurity: number,
+		parentImpurity: number, // Impurity of all samples at the current node
 	): {
 		featureIndex: number;
 		threshold?: number;
@@ -321,27 +322,61 @@ abstract class BaseDecisionTree<
 		leftIndices: number[];
 		rightIndices: number[];
 	} | null {
-		let bestGain = Number.NEGATIVE_INFINITY;
+		let bestOverallGain = Number.NEGATIVE_INFINITY;
 		let bestSplitResult: {
 			featureIndex: number;
 			threshold?: number;
 			splitCategories?: Set<string | number>;
-			leftIndices: number[];
-			rightIndices: number[];
+			leftIndices: number[]; // Original indices from X
+			rightIndices: number[]; // Original indices from X
 		} | null = null;
-		const nSamples = X.length;
-		const parentProportion =
-			nSamples / (this.root ? this.root.samples : nSamples);
 
+		const nSamplesInNode = X.length;
 		if (this.nFeatures === undefined || this.nFeatures === 0) return null;
 
 		for (let featureIdx = 0; featureIdx < this.nFeatures; featureIdx++) {
 			const featureType = this.featureTypes_?.[featureIdx] || "numerical";
-			const featureValues = X.map((sample) => sample[featureIdx]);
+
+			const nonMissingData: {
+				value: number | string; // Non-null feature value
+				target: Y_IN[0];
+				originalIndex: number;
+			}[] = [];
+			const missingDataOriginalIndices: number[] = [];
+
+			for (let i = 0; i < nSamplesInNode; i++) {
+				const val = X[i][featureIdx];
+				if (val === null) {
+					missingDataOriginalIndices.push(i);
+				} else {
+					// val is number | string here
+					nonMissingData.push({ value: val, target: y[i], originalIndex: i });
+				}
+			}
+
+			if (
+				nonMissingData.length < this.minSamplesSplit ||
+				nonMissingData.length === 0
+			) {
+				continue; // Not enough non-missing samples to consider a split on this feature
+			}
+
+			const y_nonMissing = nonMissingData.map((d) => d.target) as Y_IN;
+			const parentImpurity_nonMissing = this.calculateImpurity(y_nonMissing);
+			let bestGainForThisFeature = Number.NEGATIVE_INFINITY;
+			let splitDetailsForThisFeature: {
+				threshold?: number;
+				splitCategories?: Set<string | number>;
+				leftOriginalIndices_nonMissing: number[];
+				rightOriginalIndices_nonMissing: number[];
+			} | null = null;
 
 			if (featureType === "numerical") {
+				const featureValues_nonMissing_num = nonMissingData.map((d) =>
+					Number(d.value),
+				);
 				const uniqueSortedValues = [
-					...new Set(featureValues.map((v) => Number(v))),
+					...new Set(featureValues_nonMissing_num),
 				].sort((a, b) => a - b);
 
 				if (uniqueSortedValues.length <= 1) continue;
@@ -349,68 +384,87 @@ abstract class BaseDecisionTree<
 				for (let i = 0; i < uniqueSortedValues.length - 1; i++) {
 					const threshold =
 						(uniqueSortedValues[i] + uniqueSortedValues[i + 1]) / 2;
-					const leftIndices: number[] = [];
-					const rightIndices: number[] = [];
+					const currentLeft_indices_in_nonMissingData: number[] = [];
+					const currentRight_indices_in_nonMissingData: number[] = [];
 
-					for (let sampleIdx = 0; sampleIdx < nSamples; sampleIdx++) {
-						if (Number(X[sampleIdx][featureIdx]) <= threshold) {
-							leftIndices.push(sampleIdx);
+					for (
+						let sampleIdx = 0;
+						sampleIdx < nonMissingData.length;
+						sampleIdx++
+					) {
+						if (Number(nonMissingData[sampleIdx].value) <= threshold) {
+							currentLeft_indices_in_nonMissingData.push(sampleIdx);
 						} else {
-							rightIndices.push(sampleIdx);
+							currentRight_indices_in_nonMissingData.push(sampleIdx);
 						}
 					}
 
 					if (
-						leftIndices.length < this.minSamplesLeaf ||
-						rightIndices.length < this.minSamplesLeaf
+						currentLeft_indices_in_nonMissingData.length <
+							this.minSamplesLeaf ||
+						currentRight_indices_in_nonMissingData.length < this.minSamplesLeaf
 					) {
 						continue;
 					}
 
-					const yLeft = leftIndices.map((idx) => y[idx]) as Y_IN;
-					const yRight = rightIndices.map((idx) => y[idx]) as Y_IN;
+					const yLeft = currentLeft_indices_in_nonMissingData.map(
+						(idx) => nonMissingData[idx].target,
+					) as Y_IN;
+					const yRight = currentRight_indices_in_nonMissingData.map(
+						(idx) => nonMissingData[idx].target,
+					) as Y_IN;
 
 					const impurityLeft = this.calculateImpurity(yLeft);
 					const impurityRight = this.calculateImpurity(yRight);
-
-					const pLeft = leftIndices.length / nSamples;
-					const pRight = rightIndices.length / nSamples;
+					const pLeft =
+						currentLeft_indices_in_nonMissingData.length /
+						nonMissingData.length;
+					const pRight =
+						currentRight_indices_in_nonMissingData.length /
+						nonMissingData.length;
 					const weightedImpurity =
 						pLeft * impurityLeft + pRight * impurityRight;
-					const impurityGain = parentImpurity - weightedImpurity;
+					const impurityGain = parentImpurity_nonMissing - weightedImpurity;
 
-					if (impurityGain > bestGain) {
-						bestGain = impurityGain;
-						bestSplitResult = {
-							featureIndex: featureIdx,
+					if (impurityGain > bestGainForThisFeature) {
+						bestGainForThisFeature = impurityGain;
+						splitDetailsForThisFeature = {
 							threshold,
-							leftIndices,
-							rightIndices,
+							leftOriginalIndices_nonMissing:
+								currentLeft_indices_in_nonMissingData.map(
+									(idx) => nonMissingData[idx].originalIndex,
+								),
+							rightOriginalIndices_nonMissing:
+								currentRight_indices_in_nonMissingData.map(
+									(idx) => nonMissingData[idx].originalIndex,
+								),
 						};
 					}
 				}
 			} else {
 				// Categorical feature
-				const uniqueCategories = Array.from(new Set(featureValues));
+				const featureValues_nonMissing_cat = nonMissingData.map(
+					(d) => d.value,
+				) as (string | number)[];
+				const uniqueCategories = Array.from(
+					new Set(featureValues_nonMissing_cat),
+				);
 				if (uniqueCategories.length <= 1) continue;
 
-				const potentialCategorySplits: Set<FeatureValue>[] = [];
-
+				const potentialCategorySplits: Set<string | number>[] = [];
 				if (uniqueCategories.length === 2) {
 					potentialCategorySplits.push(new Set([uniqueCategories[0]]));
 				} else if (uniqueCategories.length > 2) {
-					const categoryMetrics: { category: FeatureValue; metric: number }[] =
+					const categoryMetrics: { category: string | number; metric: number }[] =
 						[];
 					if (this instanceof DecisionTreeClassifier) {
-						const firstClass = (
-							this as DecisionTreeClassifier
-						).getFirstUniqueClass();
-						if (firstClass === undefined) continue;
+						const firstClass = this.getFirstUniqueClass();
+						if (firstClass === undefined) continue; // Should not happen if y_nonMissing is not empty
 
 						for (const cat of uniqueCategories) {
-							const yForCat = y.filter(
-								(_val, i) => X[i][featureIdx] === cat,
-							) as YInputClassification;
+							const yForCat = nonMissingData
+								.filter((d) => d.value === cat)
+								.map((d) => d.target) as YInputClassification;
 							if (yForCat.length === 0) continue;
 							const probFirstClass =
 								yForCat.filter((label) => label === firstClass).length /
@@ -419,19 +473,17 @@ abstract class BaseDecisionTree<
 						}
 					} else if (this instanceof DecisionTreeRegressor) {
 						for (const cat of uniqueCategories) {
-							const yForCat = y
-								.filter((_val, i) => X[i][featureIdx] === cat)
-								.map((val) => Number(val)) as YInputRegression;
+							const yForCat = nonMissingData
+								.filter((d) => d.value === cat)
+								.map((d) => Number(d.target)) as YInputRegression;
 							if (yForCat.length === 0) continue;
 							const meanTarget =
 								yForCat.reduce((a, b) => a + b, 0) / yForCat.length;
 							categoryMetrics.push({ category: cat, metric: meanTarget });
 						}
 					}
-
 					categoryMetrics.sort((a, b) => a.metric - b.metric);
 					const sortedCategories = categoryMetrics.map((cm) => cm.category);
-
 					for (let i = 0; i < sortedCategories.length - 1; i++) {
 						potentialCategorySplits.push(
 							new Set(sortedCategories.slice(0, i + 1)),
@@ -444,59 +496,118 @@ abstract class BaseDecisionTree<
 						leftCategorySet.size === 0 ||
 						leftCategorySet.size === uniqueCategories.length
 					) {
-						continue; // Avoid empty or full splits that don't partition
+						continue;
 					}
-					const leftIndices: number[] = [];
-					const rightIndices: number[] = [];
-					for (let sampleIdx = 0; sampleIdx < nSamples; sampleIdx++) {
-						if (leftCategorySet.has(X[sampleIdx][featureIdx])) {
-							leftIndices.push(sampleIdx);
+					const currentLeft_indices_in_nonMissingData: number[] = [];
+					const currentRight_indices_in_nonMissingData: number[] = [];
+					for (
+						let sampleIdx = 0;
+						sampleIdx < nonMissingData.length;
+						sampleIdx++
+					) {
+						if (leftCategorySet.has(nonMissingData[sampleIdx].value)) {
+							currentLeft_indices_in_nonMissingData.push(sampleIdx);
 						} else {
-							rightIndices.push(sampleIdx);
+							currentRight_indices_in_nonMissingData.push(sampleIdx);
 						}
 					}
 
 					if (
-						leftIndices.length < this.minSamplesLeaf ||
-						rightIndices.length < this.minSamplesLeaf ||
-						leftIndices.length === 0 ||
-						rightIndices.length === 0
+						currentLeft_indices_in_nonMissingData.length <
+							this.minSamplesLeaf ||
+						currentRight_indices_in_nonMissingData.length <
+							this.minSamplesLeaf ||
+						currentLeft_indices_in_nonMissingData.length === 0 ||
+						currentRight_indices_in_nonMissingData.length === 0
 					) {
 						continue;
 					}
 
-					const yLeft = leftIndices.map((idx) => y[idx]) as Y_IN;
-					const yRight = rightIndices.map((idx) => y[idx]) as Y_IN;
+					const yLeft = currentLeft_indices_in_nonMissingData.map(
+						(idx) => nonMissingData[idx].target,
+					) as Y_IN;
+					const yRight = currentRight_indices_in_nonMissingData.map(
+						(idx) => nonMissingData[idx].target,
+					) as Y_IN;
 
 					const impurityLeft = this.calculateImpurity(yLeft);
 					const impurityRight = this.calculateImpurity(yRight);
-
-					const pLeft = leftIndices.length / nSamples;
-					const pRight = rightIndices.length / nSamples;
+					const pLeft =
+						currentLeft_indices_in_nonMissingData.length /
+						nonMissingData.length;
+					const pRight =
+						currentRight_indices_in_nonMissingData.length /
+						nonMissingData.length;
 					const weightedImpurity =
 						pLeft * impurityLeft + pRight * impurityRight;
-					const impurityGain = parentImpurity - weightedImpurity;
+					const impurityGain = parentImpurity_nonMissing - weightedImpurity;
 
-					if (impurityGain > bestGain) {
-						bestGain = impurityGain;
-						bestSplitResult = {
-							featureIndex: featureIdx,
+					if (impurityGain > bestGainForThisFeature) {
+						bestGainForThisFeature = impurityGain;
+						splitDetailsForThisFeature = {
 							splitCategories: leftCategorySet,
-							leftIndices,
-							rightIndices,
+							leftOriginalIndices_nonMissing:
+								currentLeft_indices_in_nonMissingData.map(
+									(idx) => nonMissingData[idx].originalIndex,
+								),
+							rightOriginalIndices_nonMissing:
+								currentRight_indices_in_nonMissingData.map(
+									(idx) => nonMissingData[idx].originalIndex,
+								),
 						};
 					}
 				}
 			}
-		}
 
-		if (bestSplitResult && this.featureImportances_ && bestGain > 0) {
+			if (
+				splitDetailsForThisFeature &&
+				bestGainForThisFeature > bestOverallGain
+			) {
+				bestOverallGain = bestGainForThisFeature;
+				const finalLeftIndices = [
+					...splitDetailsForThisFeature.leftOriginalIndices_nonMissing,
+				];
+				const finalRightIndices = [
+					...splitDetailsForThisFeature.rightOriginalIndices_nonMissing,
+				];
+
+				// Distribute missing values for this feature based on the split of non-missing ones
+				if (missingDataOriginalIndices.length > 0) {
+					if (
+						finalLeftIndices.length > finalRightIndices.length ||
+						finalRightIndices.length === 0 // If right is empty, send missing to left
+					) {
+						finalLeftIndices.push(...missingDataOriginalIndices);
+					} else if (
+						finalRightIndices.length > finalLeftIndices.length ||
+						finalLeftIndices.length === 0 // If left is empty, send missing to right
+					) {
+						finalRightIndices.push(...missingDataOriginalIndices);
+					} else {
+						// Equal non-empty, default to left
+						finalLeftIndices.push(...missingDataOriginalIndices);
+					}
+				}
+
+				bestSplitResult = {
+					featureIndex: featureIdx,
+					threshold: splitDetailsForThisFeature.threshold,
+					splitCategories: splitDetailsForThisFeature.splitCategories,
+					leftIndices: finalLeftIndices,
+					rightIndices: finalRightIndices,
+				};
+			}
+		} // End loop over features
+
+		if (bestSplitResult && this.featureImportances_ && bestOverallGain > 0) {
+			const totalSamplesInTree = this.root ? this.root.samples : nSamplesInNode;
+			const nodeProportion = nSamplesInNode / totalSamplesInTree;
 			this.featureImportances_[bestSplitResult.featureIndex] +=
-				bestGain * parentProportion;
+				bestOverallGain * nodeProportion;
 		}
 
 		return bestSplitResult
-			? { ...bestSplitResult, impurityGain: bestGain }
+			? { ...bestSplitResult, impurityGain: bestOverallGain }
 			: null;
 	}
 
@@ -511,14 +622,22 @@ abstract class BaseDecisionTree<
 		}
 		if (node.isLeaf || node.value !== undefined) {
 			if (node.value === undefined) {
-				// This should not happen for a leaf node if calculateLeafValue is correct
-				throw new Error("Leaf node has undefined value.");
+				// If it's a leaf but value is somehow undefined, try potentialLeafValue
+				if (node.potentialLeafValue !== undefined)
+					return node.potentialLeafValue;
+				throw new Error(
+					"Leaf node has undefined value and no potentialLeafValue.",
+				);
 			}
 			return node.value;
 		}
 
 		if (node.featureIndex === undefined) {
-			throw new Error("Invalid non-leaf node: missing featureIndex.");
+			// Non-leaf node must have a featureIndex. If not, could be an improperly pruned node.
+			if (node.potentialLeafValue !== undefined) return node.potentialLeafValue;
+			throw new Error(
+				"Invalid non-leaf node: missing featureIndex and no potentialLeafValue.",
+			);
 		}
 		if (node.featureIndex >= sample.length) {
 			throw new Error(
@@ -528,10 +647,33 @@ abstract class BaseDecisionTree<
 
 		const featureValue = sample[node.featureIndex];
 
+		if (featureValue === null) {
+			// Handle missing value for the split feature
+			if (node.leftChild && node.rightChild) {
+				// Strategy: send to the child that received more samples during training
+				if (node.leftChild.samples > node.rightChild.samples) {
+					return this._predictSample(sample, node.leftChild);
+				}
+				if (node.rightChild.samples > node.leftChild.samples) {
+					return this._predictSample(sample, node.rightChild);
+				}
+				// Equal samples, or one child might be missing if tree is malformed
+				// Default to left child if counts are equal
+				return this._predictSample(sample, node.leftChild);
+			}
+			// If children are missing but it's not a leaf, this is an invalid state.
+			// Fallback to potentialLeafValue if available.
+			if (node.potentialLeafValue !== undefined) {
+				return node.potentialLeafValue;
+			}
+			throw new Error(
+				"Missing value at a non-leaf node where children are unexpectedly missing or strategy failed, and no potentialLeafValue.",
+			);
+		}
+
 		if (node.splitCategories) {
 			// Categorical split
 			if (node.leftChild && node.rightChild) {
-				// Ensure children exist
 				if (node.splitCategories.has(featureValue)) {
 					return this._predictSample(sample, node.leftChild);
 				}
@@ -544,7 +686,6 @@ abstract class BaseDecisionTree<
 		if (node.threshold !== undefined) {
 			// Numerical split
 			if (node.leftChild && node.rightChild) {
-				// Ensure children exist
 				if (Number(featureValue) <= node.threshold) {
 					return this._predictSample(sample, node.leftChild);
 				}
@@ -554,8 +695,10 @@ abstract class BaseDecisionTree<
 				"Invalid non-leaf node: missing children for numerical split.",
 			);
 		}
+		// Fallback if no split criteria met but not a leaf (should be rare)
+		if (node.potentialLeafValue !== undefined) return node.potentialLeafValue;
 		throw new Error(
-			"Invalid non-leaf node: missing split criteria (threshold or splitCategories).",
+			"Invalid non-leaf node: missing split criteria (threshold or splitCategories) and no potentialLeafValue.",
 		);
 	}
 
