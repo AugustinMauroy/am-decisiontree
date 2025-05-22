@@ -36,6 +36,9 @@ export class Node<T extends NodeValue = NodeValue> {
 	/** Indicates whether this node is a leaf node. */
 	public isLeaf: boolean;
 
+	/** The value this node would have if it were a leaf (used for pruning). */
+	public potentialLeafValue?: T;
+
 	/**
 	 * Creates a new instance of a decision tree node.
 	 * @param options - The options to initialize the node.
@@ -48,6 +51,7 @@ export class Node<T extends NodeValue = NodeValue> {
 	 * @param options.rightChild - The right child node (if this is not a leaf node).
 	 * @param options.samples - The number of samples that reached this node.
 	 * @param options.isLeaf - Indicates whether this node is a leaf node.
+	 * @param options.potentialLeafValue - The value this node would have if it were a leaf.
 	 */
 	constructor(options: {
 		featureIndex?: number;
@@ -59,6 +63,7 @@ export class Node<T extends NodeValue = NodeValue> {
 		rightChild?: Node<T>;
 		samples: number;
 		isLeaf?: boolean;
+		potentialLeafValue?: T;
 	}) {
 		this.featureIndex = options.featureIndex;
 		this.threshold = options.threshold;
@@ -69,5 +74,6 @@ export class Node<T extends NodeValue = NodeValue> {
 		this.rightChild = options.rightChild;
 		this.samples = options.samples;
 		this.isLeaf = options.isLeaf ?? false;
+		this.potentialLeafValue = options.potentialLeafValue;
 	}
 }

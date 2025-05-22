@@ -56,6 +56,9 @@ export interface DecisionTreeParameters<Y_TYPE extends YInput> {
 
 	/** Specifies the type of each feature, 'numerical' or 'categorical'. If not provided, all features are assumed to be numerical. */
 	featureTypes?: ("numerical" | "categorical")[];
+
+	/** The complexity parameter used for Minimal Cost-Complexity Pruning. Greater values increase pruning. Defaults to 0 (no pruning). */
+	ccpAlpha?: number;
 }
 
 /**
@@ -87,6 +90,9 @@ abstract class BaseDecisionTree<
 	/** The minimum impurity decrease required to perform a split. */
 	protected minImpurityDecrease: number;
 
+	/** The complexity parameter for pruning. */
+	protected ccpAlpha: number;
+
 	/** The number of features in the input data. */
 	protected nFeatures?: number;
 
@@ -115,6 +121,7 @@ abstract class BaseDecisionTree<
 				? 0.0
 				: params.minImpurityDecrease;
 		this.featureTypes_ = params.featureTypes;
+		this.ccpAlpha = params.ccpAlpha === undefined ? 0.0 : params.ccpAlpha;
 	}
 
 	/**
@@ -163,6 +170,10 @@ abstract class BaseDecisionTree<
 			// Handle case of samples with no features, typically results in a single leaf node.
 		}
 		this.root = this._buildTree(X, y, 0);
+
+		if (this.ccpAlpha > 0 && this.root && !this.root.isLeaf) {
+			this._pruneRecursive(this.root, this.ccpAlpha);
+		}
 	}
 
 	/**
@@ -174,6 +185,7 @@ abstract class BaseDecisionTree<
 	private _buildTree(X: X_IN, y: Y_IN, depth: number): Node<P_OUT> {
 		const nSamples = X.length;
 		const currentImpurity = this.calculateImpurity(y);
+		const currentPotentialLeafValue = this.calculateLeafValue(y);
 
 		if (
 			depth >= this.maxDepth ||
@@ -182,10 +194,11 @@ abstract class BaseDecisionTree<
 			nSamples === 0 // Should not happen if minSamplesSplit >= 1
 		) {
 			return new Node<P_OUT>({
-				value: this.calculateLeafValue(y),
+				value: currentPotentialLeafValue,
 				impurity: currentImpurity,
 				samples: nSamples,
 				isLeaf: true,
+				potentialLeafValue: currentPotentialLeafValue,
 			});
 		}
 
@@ -193,10 +206,11 @@ abstract class BaseDecisionTree<
 
 		if (!bestSplit || bestSplit.impurityGain <= this.minImpurityDecrease) {
 			return new Node<P_OUT>({
-				value: this.calculateLeafValue(y),
+				value: currentPotentialLeafValue,
 				impurity: currentImpurity,
 				samples: nSamples,
 				isLeaf: true,
+				potentialLeafValue: currentPotentialLeafValue,
 			});
 		}
 
@@ -218,10 +232,11 @@ abstract class BaseDecisionTree<
 			XRight.length < this.minSamplesLeaf
 		) {
 			return new Node<P_OUT>({
-				value: this.calculateLeafValue(y),
+				value: currentPotentialLeafValue,
 				impurity: currentImpurity,
 				samples: nSamples,
 				isLeaf: true,
+				potentialLeafValue: currentPotentialLeafValue,
 			});
 		}
 
@@ -237,7 +252,55 @@ abstract class BaseDecisionTree<
 			rightChild: rightChild,
 			samples: nSamples,
 			isLeaf: false,
+			potentialLeafValue: currentPotentialLeafValue,
 		});
+	}
+
+	private _pruneRecursive(
+		node: Node<P_OUT>,
+		ccpAlpha: number,
+	): { totalImpuritySum: number; numLeaves: number } {
+		if (node.isLeaf) {
+			return {
+				totalImpuritySum: (node.impurity ?? 0) * node.samples,
+				numLeaves: 1,
+			};
+		}
+
+		// Children must exist if not a leaf and tree built correctly
+		const leftChildResult = this._pruneRecursive(node.leftChild!, ccpAlpha);
+		const rightChildResult = this._pruneRecursive(node.rightChild!, ccpAlpha);
+
+		const R_Tt =
+			leftChildResult.totalImpuritySum + rightChildResult.totalImpuritySum;
+		const numLeaves_Tt = leftChildResult.numLeaves + rightChildResult.numLeaves;
+		const R_t = (node.impurity ?? 0) * node.samples;
+
+		if (numLeaves_Tt <= 1) {
+			// Cannot apply the standard pruning rule (division by zero or negative)
+			// or subtree is already as simple as a leaf or simpler.
+			// Propagate current complexity of the (potentially already pruned) children.
+			return { totalImpuritySum: R_Tt, numLeaves: numLeaves_Tt };
+		}
+
+		const g_t = (R_t - R_Tt) / (numLeaves_Tt - 1);
+
+		if (g_t <= ccpAlpha) {
+			// Prune this node: make it a leaf
+			node.isLeaf = true;
+			node.value = node.potentialLeafValue;
+			node.leftChild = undefined;
+			node.rightChild = undefined;
+			node.featureIndex = undefined;
+			node.threshold = undefined;
+			node.splitCategories = undefined;
+			// node.impurity remains the impurity of samples at this node
+			// node.samples remains the samples at this node
+
+			return { totalImpuritySum: R_t, numLeaves: 1 };
+		}
+		// Don't prune this node, keep its (potentially pruned) children
+		return { totalImpuritySum: R_Tt, numLeaves: numLeaves_Tt };
 	}
 
 	/**
@@ -536,6 +599,7 @@ abstract class BaseDecisionTree<
 			nFeatures: this.nFeatures,
 			// For classifier, uniqueClasses_ might be needed
 			// For regressor, no extra specific state beyond base
+			ccpAlpha: this.ccpAlpha,
 		});
 	}
 }
@@ -755,6 +819,7 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 			nFeatures: this.nFeatures,
 			featureTypes: this.featureTypes_,
 			uniqueClasses: this.uniqueClasses_,
+			ccpAlpha: this.ccpAlpha,
 		});
 	}
 
@@ -776,6 +841,7 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 			minSamplesLeaf: obj.minSamplesLeaf,
 			minImpurityDecrease: obj.minImpurityDecrease,
 			featureTypes: obj.featureTypes,
+			ccpAlpha: obj.ccpAlpha,
 		});
 		if (obj.root) {
 			classifier.root = deserializeNode(obj.root) as Node<
@@ -784,6 +850,7 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 		}
 		classifier.nFeatures = obj.nFeatures;
 		classifier.uniqueClasses_ = obj.uniqueClasses;
+		// ccpAlpha is set in constructor by DecisionTreeParameters
 		return classifier;
 	}
 }
@@ -867,6 +934,7 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 			minImpurityDecrease: this.minImpurityDecrease,
 			nFeatures: this.nFeatures,
 			featureTypes: this.featureTypes_,
+			ccpAlpha: this.ccpAlpha,
 		});
 	}
 
@@ -888,11 +956,13 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 			minSamplesLeaf: obj.minSamplesLeaf,
 			minImpurityDecrease: obj.minImpurityDecrease,
 			featureTypes: obj.featureTypes,
+			ccpAlpha: obj.ccpAlpha,
 		});
 		if (obj.root) {
 			regressor.root = deserializeNode(obj.root) as Node<number>;
 		}
 		regressor.nFeatures = obj.nFeatures;
+		// ccpAlpha is set in constructor by DecisionTreeParameters
 		return regressor;
 	}
 }
