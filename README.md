@@ -13,8 +13,6 @@ Using `@am/decisiontree` involves these main steps:
 1.  **Import necessary classes**:
     ```typescript
     import { DecisionTreeClassifier, DecisionTreeRegressor } from "@am/decisiontree";
-    // Or from "./src/mod.ts" if using locally
-    // import { DecisionTreeClassifier } from "./src/mod.ts";
     ```
 2.  **Prepare your data**:
     *   `X`: An array of arrays, where each inner array represents a sample's features (numeric).
@@ -62,7 +60,6 @@ Using `@am/decisiontree` involves these main steps:
 6.  **Evaluate the Model (Optional)**: Use metrics functions from the library (e.g., `accuracyScore`, `meanSquaredError`) to evaluate performance.
     ```typescript
     import { accuracyScore, meanSquaredError } from "@am/decisiontree";
-    // import { accuracyScore, meanSquaredError } from "./src/mod.ts"; // if local
 
     // Assuming y_test_clf and y_test_reg are available
     // const acc = accuracyScore(y_test_clf, predictions_clf);
@@ -82,10 +79,7 @@ Using `@am/decisiontree` involves these main steps:
 Here's a basic example of using `DecisionTreeClassifier` to classify data:
 
 ```typescript
-// filepath: examples/simple_classifier_readme.ts
 import { DecisionTreeClassifier, accuracyScore } from "@am/decisiontree";
-// Or if running directly from the repository:
-// import { DecisionTreeClassifier, accuracyScore } from "../src/mod.ts";
 
 // 1. Define sample data
 const X_train: number[][] = [
@@ -145,10 +139,6 @@ console.log("---");
 // 8. Get Feature Importances
 const featureImportances = classifier.getFeatureImportances();
 console.log("Feature Importances:", featureImportances);
-
-console.log(
-    "\nNote: The exact split point and thus predictions/probabilities might vary if multiple splits yield similar impurity reductions.",
-);
 ```
 
 For more detailed examples, including regression and usage of different parameters, please check out the [examples/](examples/) folder in the repository.
