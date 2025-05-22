@@ -65,12 +65,3 @@ console.log("---");
 // 7. Get Feature Importances
 const featureImportances = regressor.getFeatureImportances();
 console.log("Feature Importances:", featureImportances);
-
-console.log(
-	"\nNote: The exact split point and thus predictions might vary if multiple splits yield similar impurity reductions.",
-);
-
-// Inspect the tree structure (optional)
-console.log("\nFitted tree structure (root node):");
-// biome-ignore lint: For inspection purposes
-console.log(JSON.stringify(regressor["root"], null, 2));

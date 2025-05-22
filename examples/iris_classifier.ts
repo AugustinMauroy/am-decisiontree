@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { DecisionTreeClassifier } from "../src/mod.ts";
-import { accuracyScore } from "../src/evaluation/classification_metrics.ts"; // Assuming this is exported from mod.ts or directly
+import { DecisionTreeClassifier, accuracyScore } from "../src/mod.ts";
 
 async function loadIrisDataFromCsv(
 	filePath: string,
@@ -112,7 +111,4 @@ const featureImportances = classifier.getFeatureImportances();
 console.log(
 	"Feature Importances (Sepal Length, Sepal Width, Petal Length, Petal Width):",
 	featureImportances,
-);
-console.log(
-	"\nNote: The exact split points and thus predictions/probabilities might vary if multiple splits yield similar impurity reductions.",
 );

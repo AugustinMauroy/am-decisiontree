@@ -1,4 +1,4 @@
-import { DecisionTreeClassifier } from "../src/mod.ts";
+import { DecisionTreeClassifier, accuracyScore } from "../src/mod.ts";
 
 // 1. Define sample data
 const X_train: number[][] = [
@@ -69,9 +69,10 @@ console.log(
 	`Probabilities for ${X_single_B}: Class A: ${prob_B[0][0].toFixed(2)}, Class B: ${prob_B[0][1].toFixed(2)}`,
 );
 
-console.log(
-	"\nNote: The exact split point and thus predictions might vary slightly if multiple splits yield the same impurity reduction.",
-);
-console.log("The root node of the fitted tree (for inspection if needed):");
-// biome-ignore lint: we don't recommend using ['root]
-console.log(JSON.stringify(classifier["root"], null, 2));
+
+// 7. Evaluate the model
+const y_test: string[] = ["A", "A", "B", "B"];
+const accuracy = accuracyScore(y_test, predictions);
+console.log("Accuracy of the model:", accuracy.toFixed(2)); // Expected: 1.00 (or close to it)
+console.log("---");
+
