@@ -10,9 +10,15 @@ import { calculateMAE } from "./criteria/mae_criterion.ts";
 export type Criterion = "gini" | "entropy" | "mse" | "mae";
 
 /**
- * Input feature matrix where each row represents a sample and each column represents a feature.
+ * Represents a single feature value, which can be numerical or categorical.
  */
-export type XInput = number[][];
+export type FeatureValue = number | string;
+
+/**
+ * Input feature matrix where each row represents a sample and each column represents a feature.
+ * Features can be numerical or categorical.
+ */
+export type XInput = FeatureValue[][];
 
 /**
  * Target values for classification tasks. Can be numbers or strings.
@@ -47,6 +53,9 @@ export interface DecisionTreeParameters<Y_TYPE extends YInput> {
 
 	/** The minimum impurity decrease required to perform a split. */
 	minImpurityDecrease?: number;
+
+	/** Specifies the type of each feature, 'numerical' or 'categorical'. If not provided, all features are assumed to be numerical. */
+	featureTypes?: ("numerical" | "categorical")[];
 }
 
 /**
@@ -84,6 +93,9 @@ abstract class BaseDecisionTree<
 	/** The importance of each feature in the decision tree. */
 	protected featureImportances_?: number[];
 
+	/** Stores the type of each feature ('numerical' or 'categorical'). */
+	protected featureTypes_?: ("numerical" | "categorical")[];
+
 	/**
 	 * Creates a new instance of a decision tree.
 	 * @param params - The parameters to configure the decision tree.
@@ -102,6 +114,7 @@ abstract class BaseDecisionTree<
 			params.minImpurityDecrease === undefined
 				? 0.0
 				: params.minImpurityDecrease;
+		this.featureTypes_ = params.featureTypes;
 	}
 
 	/**
@@ -134,6 +147,16 @@ abstract class BaseDecisionTree<
 			throw new Error("Cannot fit on empty dataset.");
 		}
 		this.nFeatures = X[0]?.length || 0;
+		if (this.featureTypes_ && this.featureTypes_.length !== this.nFeatures) {
+			throw new Error(
+				"Length of featureTypes must match the number of features in X.",
+			);
+		}
+		// If featureTypes_ is not provided, assume all are numerical
+		if (!this.featureTypes_ && this.nFeatures > 0) {
+			this.featureTypes_ = Array(this.nFeatures).fill("numerical");
+		}
+
 		this.featureImportances_ =
 			this.nFeatures > 0 ? Array(this.nFeatures).fill(0) : [];
 		if (this.nFeatures === 0 && X.length > 0) {
@@ -177,14 +200,19 @@ abstract class BaseDecisionTree<
 			});
 		}
 
-		const { featureIndex, threshold, leftIndices, rightIndices } = bestSplit;
+		const {
+			featureIndex,
+			threshold,
+			splitCategories,
+			leftIndices,
+			rightIndices,
+		} = bestSplit;
 
 		const XLeft = leftIndices.map((i) => X[i]) as X_IN;
 		const yLeft = leftIndices.map((i) => y[i]) as Y_IN;
 		const XRight = rightIndices.map((i) => X[i]) as X_IN;
 		const yRight = rightIndices.map((i) => y[i]) as Y_IN;
 
-		// This check should ideally use minSamplesLeaf from the parameters
 		if (
 			XLeft.length < this.minSamplesLeaf ||
 			XRight.length < this.minSamplesLeaf
@@ -203,6 +231,7 @@ abstract class BaseDecisionTree<
 		return new Node<P_OUT>({
 			featureIndex: featureIndex,
 			threshold: threshold,
+			splitCategories: splitCategories,
 			impurity: currentImpurity,
 			leftChild: leftChild,
 			rightChild: rightChild,
@@ -223,7 +252,8 @@ abstract class BaseDecisionTree<
 		parentImpurity: number,
 	): {
 		featureIndex: number;
-		threshold: number;
+		threshold?: number;
+		splitCategories?: Set<string | number>;
 		impurityGain: number;
 		leftIndices: number[];
 		rightIndices: number[];
@@ -231,69 +261,173 @@ abstract class BaseDecisionTree<
 		let bestGain = Number.NEGATIVE_INFINITY;
 		let bestSplitResult: {
 			featureIndex: number;
-			threshold: number;
+			threshold?: number;
+			splitCategories?: Set<string | number>;
 			leftIndices: number[];
 			rightIndices: number[];
 		} | null = null;
 		const nSamples = X.length;
 		const parentProportion =
-			nSamples / (this.root ? this.root.samples : nSamples); // Proportion of total samples
+			nSamples / (this.root ? this.root.samples : nSamples);
 
 		if (this.nFeatures === undefined || this.nFeatures === 0) return null;
 
 		for (let featureIdx = 0; featureIdx < this.nFeatures; featureIdx++) {
+			const featureType = this.featureTypes_?.[featureIdx] || "numerical";
 			const featureValues = X.map((sample) => sample[featureIdx]);
-			const uniqueSortedValues = [...new Set(featureValues)].sort(
-				(a, b) => a - b,
-			);
 
-			if (uniqueSortedValues.length <= 1) continue;
+			if (featureType === "numerical") {
+				const uniqueSortedValues = [
+					...new Set(featureValues.map((v) => Number(v))),
+				].sort((a, b) => a - b);
 
-			for (let i = 0; i < uniqueSortedValues.length - 1; i++) {
-				const threshold =
-					(uniqueSortedValues[i] + uniqueSortedValues[i + 1]) / 2;
-				const leftIndices: number[] = [];
-				const rightIndices: number[] = [];
+				if (uniqueSortedValues.length <= 1) continue;
 
-				for (let sampleIdx = 0; sampleIdx < nSamples; sampleIdx++) {
-					if (X[sampleIdx][featureIdx] <= threshold) {
-						leftIndices.push(sampleIdx);
-					} else {
-						rightIndices.push(sampleIdx);
+				for (let i = 0; i < uniqueSortedValues.length - 1; i++) {
+					const threshold =
+						(uniqueSortedValues[i] + uniqueSortedValues[i + 1]) / 2;
+					const leftIndices: number[] = [];
+					const rightIndices: number[] = [];
+
+					for (let sampleIdx = 0; sampleIdx < nSamples; sampleIdx++) {
+						if (Number(X[sampleIdx][featureIdx]) <= threshold) {
+							leftIndices.push(sampleIdx);
+						} else {
+							rightIndices.push(sampleIdx);
+						}
+					}
+
+					if (
+						leftIndices.length < this.minSamplesLeaf ||
+						rightIndices.length < this.minSamplesLeaf
+					) {
+						continue;
+					}
+
+					const yLeft = leftIndices.map((idx) => y[idx]) as Y_IN;
+					const yRight = rightIndices.map((idx) => y[idx]) as Y_IN;
+
+					const impurityLeft = this.calculateImpurity(yLeft);
+					const impurityRight = this.calculateImpurity(yRight);
+
+					const pLeft = leftIndices.length / nSamples;
+					const pRight = rightIndices.length / nSamples;
+					const weightedImpurity =
+						pLeft * impurityLeft + pRight * impurityRight;
+					const impurityGain = parentImpurity - weightedImpurity;
+
+					if (impurityGain > bestGain) {
+						bestGain = impurityGain;
+						bestSplitResult = {
+							featureIndex: featureIdx,
+							threshold,
+							leftIndices,
+							rightIndices,
+						};
+					}
+				}
+			} else {
+				// Categorical feature
+				const uniqueCategories = Array.from(new Set(featureValues));
+				if (uniqueCategories.length <= 1) continue;
+
+				const potentialCategorySplits: Set<FeatureValue>[] = [];
+
+				if (uniqueCategories.length === 2) {
+					potentialCategorySplits.push(new Set([uniqueCategories[0]]));
+				} else if (uniqueCategories.length > 2) {
+					const categoryMetrics: { category: FeatureValue; metric: number }[] =
+						[];
+					if (this instanceof DecisionTreeClassifier) {
+						const firstClass = (
+							this as DecisionTreeClassifier
+						).getFirstUniqueClass();
+						if (firstClass === undefined) continue;
+
+						for (const cat of uniqueCategories) {
+							const yForCat = y.filter(
+								(_val, i) => X[i][featureIdx] === cat,
+							) as YInputClassification;
+							if (yForCat.length === 0) continue;
+							const probFirstClass =
+								yForCat.filter((label) => label === firstClass).length /
+								yForCat.length;
+							categoryMetrics.push({ category: cat, metric: probFirstClass });
+						}
+					} else if (this instanceof DecisionTreeRegressor) {
+						for (const cat of uniqueCategories) {
+							const yForCat = y
+								.filter((_val, i) => X[i][featureIdx] === cat)
+								.map((val) => Number(val)) as YInputRegression;
+							if (yForCat.length === 0) continue;
+							const meanTarget =
+								yForCat.reduce((a, b) => a + b, 0) / yForCat.length;
+							categoryMetrics.push({ category: cat, metric: meanTarget });
+						}
+					}
+
+					categoryMetrics.sort((a, b) => a.metric - b.metric);
+					const sortedCategories = categoryMetrics.map((cm) => cm.category);
+
+					for (let i = 0; i < sortedCategories.length - 1; i++) {
+						potentialCategorySplits.push(
+							new Set(sortedCategories.slice(0, i + 1)),
+						);
 					}
 				}
 
-				if (
-					leftIndices.length < this.minSamplesLeaf ||
-					rightIndices.length < this.minSamplesLeaf
-				) {
-					continue;
-				}
+				for (const leftCategorySet of potentialCategorySplits) {
+					if (
+						leftCategorySet.size === 0 ||
+						leftCategorySet.size === uniqueCategories.length
+					) {
+						continue; // Avoid empty or full splits that don't partition
+					}
+					const leftIndices: number[] = [];
+					const rightIndices: number[] = [];
+					for (let sampleIdx = 0; sampleIdx < nSamples; sampleIdx++) {
+						if (leftCategorySet.has(X[sampleIdx][featureIdx])) {
+							leftIndices.push(sampleIdx);
+						} else {
+							rightIndices.push(sampleIdx);
+						}
+					}
 
-				const yLeft = leftIndices.map((idx) => y[idx]) as Y_IN;
-				const yRight = rightIndices.map((idx) => y[idx]) as Y_IN;
+					if (
+						leftIndices.length < this.minSamplesLeaf ||
+						rightIndices.length < this.minSamplesLeaf ||
+						leftIndices.length === 0 ||
+						rightIndices.length === 0
+					) {
+						continue;
+					}
 
-				const impurityLeft = this.calculateImpurity(yLeft);
-				const impurityRight = this.calculateImpurity(yRight);
+					const yLeft = leftIndices.map((idx) => y[idx]) as Y_IN;
+					const yRight = rightIndices.map((idx) => y[idx]) as Y_IN;
 
-				const pLeft = leftIndices.length / nSamples;
-				const pRight = rightIndices.length / nSamples;
-				const weightedImpurity = pLeft * impurityLeft + pRight * impurityRight;
-				const impurityGain = parentImpurity - weightedImpurity;
+					const impurityLeft = this.calculateImpurity(yLeft);
+					const impurityRight = this.calculateImpurity(yRight);
 
-				if (impurityGain > bestGain) {
-					bestGain = impurityGain;
-					bestSplitResult = {
-						featureIndex: featureIdx,
-						threshold,
-						leftIndices,
-						rightIndices,
-					};
+					const pLeft = leftIndices.length / nSamples;
+					const pRight = rightIndices.length / nSamples;
+					const weightedImpurity =
+						pLeft * impurityLeft + pRight * impurityRight;
+					const impurityGain = parentImpurity - weightedImpurity;
+
+					if (impurityGain > bestGain) {
+						bestGain = impurityGain;
+						bestSplitResult = {
+							featureIndex: featureIdx,
+							splitCategories: leftCategorySet,
+							leftIndices,
+							rightIndices,
+						};
+					}
 				}
 			}
 		}
 
-		if (bestSplitResult && this.featureImportances_) {
+		if (bestSplitResult && this.featureImportances_ && bestGain > 0) {
 			this.featureImportances_[bestSplitResult.featureIndex] +=
 				bestGain * parentProportion;
 		}
@@ -308,7 +442,7 @@ abstract class BaseDecisionTree<
 	 * @param sample - The input sample.
 	 * @param node - The current node in the tree.
 	 */
-	protected _predictSample(sample: number[], node?: Node<P_OUT>): P_OUT {
+	protected _predictSample(sample: FeatureValue[], node?: Node<P_OUT>): P_OUT {
 		if (!node) {
 			throw new Error("Tree is not fitted yet or root node is undefined.");
 		}
@@ -320,10 +454,8 @@ abstract class BaseDecisionTree<
 			return node.value;
 		}
 
-		if (node.featureIndex === undefined || node.threshold === undefined) {
-			throw new Error(
-				"Invalid non-leaf node: missing featureIndex or threshold.",
-			);
+		if (node.featureIndex === undefined) {
+			throw new Error("Invalid non-leaf node: missing featureIndex.");
 		}
 		if (node.featureIndex >= sample.length) {
 			throw new Error(
@@ -331,10 +463,37 @@ abstract class BaseDecisionTree<
 			);
 		}
 
-		if (sample[node.featureIndex] <= node.threshold) {
-			return this._predictSample(sample, node.leftChild);
+		const featureValue = sample[node.featureIndex];
+
+		if (node.splitCategories) {
+			// Categorical split
+			if (node.leftChild && node.rightChild) {
+				// Ensure children exist
+				if (node.splitCategories.has(featureValue)) {
+					return this._predictSample(sample, node.leftChild);
+				}
+				return this._predictSample(sample, node.rightChild);
+			}
+			throw new Error(
+				"Invalid non-leaf node: missing children for categorical split.",
+			);
 		}
-		return this._predictSample(sample, node.rightChild);
+		if (node.threshold !== undefined) {
+			// Numerical split
+			if (node.leftChild && node.rightChild) {
+				// Ensure children exist
+				if (Number(featureValue) <= node.threshold) {
+					return this._predictSample(sample, node.leftChild);
+				}
+				return this._predictSample(sample, node.rightChild);
+			}
+			throw new Error(
+				"Invalid non-leaf node: missing children for numerical split.",
+			);
+		}
+		throw new Error(
+			"Invalid non-leaf node: missing split criteria (threshold or splitCategories).",
+		);
 	}
 
 	/**
@@ -379,6 +538,45 @@ abstract class BaseDecisionTree<
 			// For regressor, no extra specific state beyond base
 		});
 	}
+}
+
+// Helper function to prepare node for JSON serialization
+// biome-ignore lint: Any is needed here
+function serializeNode<T extends NodeValue>(node: Node<T>): any {
+	// biome-ignore lint: Any is needed here
+	const serialized: any = { ...node };
+	// Convert Set to Array for JSON compatibility
+	if (node.splitCategories instanceof Set) {
+		serialized.splitCategories = Array.from(node.splitCategories);
+	}
+	if (node.leftChild) {
+		serialized.leftChild = serializeNode(node.leftChild);
+	}
+	if (node.rightChild) {
+		serialized.rightChild = serializeNode(node.rightChild);
+	}
+	return serialized;
+}
+
+// Helper function to deserialize node from JSON object
+// biome-ignore lint: Any is needed here
+function deserializeNode<T extends NodeValue>(nodeData: any): Node<T> {
+	const options: ConstructorParameters<typeof Node>[0] = {
+		...nodeData,
+		leftChild: nodeData.leftChild
+			? deserializeNode(nodeData.leftChild)
+			: undefined,
+		rightChild: nodeData.rightChild
+			? deserializeNode(nodeData.rightChild)
+			: undefined,
+	};
+	// Convert Array back to Set
+	if (Array.isArray(nodeData.splitCategories)) {
+		options.splitCategories = new Set(nodeData.splitCategories);
+	}
+
+	// @ts-ignore - IDK how to fix this
+	return new Node<T>(options);
 }
 
 /**
@@ -530,21 +728,32 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 	}
 
 	/**
+	 * Internal helper to get the first unique class, used for categorical split heuristic.
+	 */
+	public getFirstUniqueClass(): string | number | undefined {
+		return this.uniqueClasses_ && this.uniqueClasses_.length > 0
+			? this.uniqueClasses_[0]
+			: undefined;
+	}
+
+	/**
 	 * Returns the decision tree structure as a JSON string, including classifier-specific info.
 	 */
 	public override toJSON(): string {
 		if (!this.root) {
 			throw new Error("Tree is not fitted yet. Cannot serialize.");
 		}
+		const serializedRoot = serializeNode(this.root);
 		return JSON.stringify({
 			type: "classifier",
-			root: this.root,
+			root: serializedRoot,
 			criterion: this.criterion,
 			maxDepth: this.maxDepth,
 			minSamplesSplit: this.minSamplesSplit,
 			minSamplesLeaf: this.minSamplesLeaf,
 			minImpurityDecrease: this.minImpurityDecrease,
 			nFeatures: this.nFeatures,
+			featureTypes: this.featureTypes_,
 			uniqueClasses: this.uniqueClasses_,
 		});
 	}
@@ -566,14 +775,15 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 			minSamplesSplit: obj.minSamplesSplit,
 			minSamplesLeaf: obj.minSamplesLeaf,
 			minImpurityDecrease: obj.minImpurityDecrease,
+			featureTypes: obj.featureTypes,
 		});
-		classifier.root = obj.root as Node<Record<string | number, number>>; // Type assertion
+		if (obj.root) {
+			classifier.root = deserializeNode(obj.root) as Node<
+				Record<string | number, number>
+			>;
+		}
 		classifier.nFeatures = obj.nFeatures;
 		classifier.uniqueClasses_ = obj.uniqueClasses;
-		// Reconstruct feature importances if they were part of serialization (not currently)
-		// Or mark them as needing recalculation if that's feasible post-load.
-		// For simplicity, featureImportances_ are not serialized/deserialized here.
-		// They would be re-calculated if fit was called again, or be unavailable.
 		return classifier;
 	}
 }
@@ -646,15 +856,17 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 		if (!this.root) {
 			throw new Error("Tree is not fitted yet. Cannot serialize.");
 		}
+		const serializedRoot = serializeNode(this.root);
 		return JSON.stringify({
 			type: "regressor",
-			root: this.root,
+			root: serializedRoot,
 			criterion: this.criterion,
 			maxDepth: this.maxDepth,
 			minSamplesSplit: this.minSamplesSplit,
 			minSamplesLeaf: this.minSamplesLeaf,
 			minImpurityDecrease: this.minImpurityDecrease,
 			nFeatures: this.nFeatures,
+			featureTypes: this.featureTypes_,
 		});
 	}
 
@@ -675,8 +887,11 @@ export class DecisionTreeRegressor extends BaseDecisionTree<
 			minSamplesSplit: obj.minSamplesSplit,
 			minSamplesLeaf: obj.minSamplesLeaf,
 			minImpurityDecrease: obj.minImpurityDecrease,
+			featureTypes: obj.featureTypes,
 		});
-		regressor.root = obj.root as Node<number>; // Type assertion
+		if (obj.root) {
+			regressor.root = deserializeNode(obj.root) as Node<number>;
+		}
 		regressor.nFeatures = obj.nFeatures;
 		return regressor;
 	}

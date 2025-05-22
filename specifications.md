@@ -20,9 +20,7 @@ Développer une bibliothèque TypeScript robuste, modulaire, performante et faci
 
 2.7. Sérialisation et Désérialisation * Sauvegarder la structure et les paramètres d'un arbre entraîné (ex: au format JSON). * Charger un modèle sauvegardé pour réutilisation.
 
-2.8. Visualisation (Fortement Recommandé) * Capacité à exporter la structure de l'arbre dans un format lisible ou visualisable (ex: format DOT pour Graphviz, ou une structure JSON simple pour des rendus personnalisés).
-
-2.9. (Avancé) Ensembles d'Arbres - Pour une Complétude Maximale * Random Forest (Forêt Aléatoire): * Pour la classification et la régression. * Construction de multiples arbres sur des sous-ensembles d'échantillons (bagging) et de features. * Agrégation des prédictions (vote majoritaire pour classification, moyenne pour régression). * Paramètres spécifiques: n_estimators (nombre d'arbres), max_features (nombre de features à considérer pour chaque split).
+2.8. (Avancé) Ensembles d'Arbres - Pour une Complétude Maximale * Random Forest (Forêt Aléatoire): * Pour la classification et la régression. * Construction de multiples arbres sur des sous-ensembles d'échantillons (bagging) et de features. * Agrégation des prédictions (vote majoritaire pour classification, moyenne pour régression). * Paramètres spécifiques: n_estimators (nombre d'arbres), max_features (nombre de features à considérer pour chaque split).
 
 ## 3. Architecture et Conception
 

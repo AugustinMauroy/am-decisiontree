@@ -166,6 +166,147 @@ describe("DecisionTreeClassifier", () => {
 			classifier.uniqueClasses_.length,
 		);
 	});
+
+	it("should handle categorical features for classifier", () => {
+		const classifier = new DecisionTreeClassifier({
+			featureTypes: ["categorical", "numerical"],
+			minSamplesLeaf: 1,
+		});
+		const X = [
+			["A", 1],
+			["B", 2],
+			["A", 3],
+			["C", 1],
+			["B", 5],
+			["C", 6],
+		];
+		const y = ["X", "Y", "X", "Z", "Y", "Z"];
+
+		classifier.fit(X, y);
+		const predictions = classifier.predict([
+			["A", 2],
+			["B", 3],
+			["C", 4],
+		]);
+
+		// Exact predictions depend on splits, but should be one of the classes
+		assert.ok(predictions.every((p) => ["X", "Y", "Z"].includes(p as string)));
+		assert.strictEqual(predictions.length, 3);
+
+		const probabilities = classifier.predictProba([
+			["A", 2],
+			["C", 0],
+		]);
+
+		assert.strictEqual(probabilities.length, 2);
+		assert.strictEqual(probabilities[0].length, 3); // X, Y, Z
+		assert.strictEqual(
+			Math.round(probabilities[0].reduce((a, b) => a + b, 0)),
+			1,
+		);
+	});
+
+	it("should handle all categorical features for classifier", () => {
+		const classifier = new DecisionTreeClassifier({
+			featureTypes: ["categorical", "categorical"],
+			minSamplesLeaf: 1,
+		});
+		const X = [
+			["A", "Low"],
+			["B", "High"],
+			["A", "Medium"],
+			["C", "Low"],
+		];
+		const y = [0, 1, 0, 1];
+
+		classifier.fit(X, y);
+		const predictions = classifier.predict([
+			["A", "High"],
+			["C", "Low"],
+		]);
+
+		assert.ok(predictions.every((p) => [0, 1].includes(p as number)));
+	});
+
+	it("should serialize and deserialize a classifier with featureTypes", () => {
+		const classifier = new DecisionTreeClassifier({
+			maxDepth: 2,
+			featureTypes: ["categorical", "numerical"],
+		});
+		const X = [
+			["A", 1],
+			["B", 2],
+			["A", 10],
+			["B", 11],
+		];
+		const y = ["X", "X", "Y", "Y"];
+
+		classifier.fit(X, y);
+
+		const testSample: (string | number)[][] = [
+			["A", 1.5],
+			["B", 10.5],
+		];
+
+		const originalPredictions = classifier.predict(testSample);
+
+		const json = classifier.toJSON();
+		const loadedClassifier = DecisionTreeClassifier.fromJSON(json);
+		const loadedPredictions = loadedClassifier.predict(testSample);
+
+		assert.deepStrictEqual(loadedPredictions, originalPredictions);
+		assert.deepStrictEqual(
+			loadedClassifier.predictProba(testSample),
+			classifier.predictProba(testSample),
+		);
+		// @ts-expect-error
+		assert.deepStrictEqual(loadedClassifier.featureTypes_, [
+			"categorical",
+			"numerical",
+		]);
+	});
+
+	it("should calculate feature importances with categorical features", () => {
+		const classifier = new DecisionTreeClassifier({
+			featureTypes: ["categorical", "numerical"],
+			minSamplesLeaf: 1,
+		});
+		// Feature 0 (categorical) is more discriminative
+		const X = [
+			["A", 10],
+			["B", 20],
+			["A", 30],
+			["B", 40],
+		]; // A vs B clearly separates classes
+		const y = ["X", "Y", "X", "Y"];
+
+		classifier.fit(X, y);
+		const importances = classifier.getFeatureImportances();
+
+		assert.strictEqual(importances.length, 2);
+		assert.ok(
+			importances[0] > importances[1],
+			"Categorical Feature 0 should be more important",
+		);
+		assert.strictEqual(Math.round(importances.reduce((a, b) => a + b, 0)), 1);
+	});
+
+	it("should throw error if featureTypes length mismatches nFeatures", () => {
+		const classifier = new DecisionTreeClassifier({
+			featureTypes: ["categorical"],
+		});
+		const X = [
+			[1, 2],
+			[3, 4],
+		];
+		const y = ["A", "B"];
+
+		assert.throws(
+			() => classifier.fit(X, y),
+			Error,
+			"Length of featureTypes must match the number of features in X.",
+		);
+	});
 });
 
 describe("DecisionTreeRegressor", () => {
@@ -283,5 +424,117 @@ describe("DecisionTreeRegressor", () => {
 		// Exact values depend on MAE splits, but should be reasonable
 		assert.ok(predictions[0] < 25);
 		assert.ok(predictions[1] > 25);
+	});
+
+	it("should handle categorical features for regressor", () => {
+		const regressor = new DecisionTreeRegressor({
+			featureTypes: ["categorical", "numerical"],
+			minSamplesLeaf: 1,
+			criterion: "mse",
+		});
+		const X = [
+			["A", 1],
+			["B", 2],
+			["A", 3],
+			["C", 1],
+			["B", 5],
+			["C", 6],
+		];
+		const y = [10, 20, 15, 5, 25, 8];
+
+		regressor.fit(X, y);
+		const predictions = regressor.predict([
+			["A", 2], // Expect something around 10-15
+			["B", 3], // Expect something around 20-25
+			["C", 4], // Expect something around 5-8
+		]);
+
+		assert.strictEqual(predictions.length, 3);
+		assert.ok(predictions[0] > 5 && predictions[0] < 20);
+		assert.ok(predictions[1] > 15 && predictions[1] < 30);
+		assert.ok(predictions[2] > 0 && predictions[2] < 15);
+	});
+
+	it("should handle all categorical features for regressor", () => {
+		const regressor = new DecisionTreeRegressor({
+			featureTypes: ["categorical", "categorical"],
+			minSamplesLeaf: 1,
+			criterion: "mse",
+		});
+		const X = [
+			["Type1", "Low"],
+			["Type2", "High"],
+			["Type1", "Medium"],
+			["Type3", "Low"],
+		];
+		const y = [100, 500, 150, 50];
+
+		regressor.fit(X, y);
+		const predictions = regressor.predict([
+			["Type1", "High"], // Should be close to avg of Type1
+			["Type3", "Low"], // Should be close to 50
+		]);
+
+		assert.ok(predictions[0] > 100 && predictions[0] < 200);
+		assert.ok(predictions[1] > 40 && predictions[1] < 60);
+	});
+
+	it("should serialize and deserialize a regressor with featureTypes", () => {
+		const regressor = new DecisionTreeRegressor({
+			maxDepth: 2,
+			featureTypes: ["categorical", "numerical"],
+			criterion: "mse",
+		});
+		const X = [
+			["A", 1],
+			["B", 2],
+			["A", 10],
+			["B", 11],
+		];
+		const y = [5, 5, 50, 50];
+
+		regressor.fit(X, y);
+		const testSample: (string | number)[][] = [
+			["A", 1.5],
+			["B", 10.5],
+		];
+
+		const originalPredictions = regressor.predict(testSample);
+
+		const json = regressor.toJSON();
+		const loadedRegressor = DecisionTreeRegressor.fromJSON(json);
+		const loadedPredictions = loadedRegressor.predict(testSample);
+
+		assert.deepStrictEqual(loadedPredictions, originalPredictions);
+		// @ts-expect-error
+		assert.deepStrictEqual(loadedRegressor.featureTypes_, [
+			"categorical",
+			"numerical",
+		]);
+	});
+
+	it("should calculate feature importances with categorical features for regressor", () => {
+		const regressor = new DecisionTreeRegressor({
+			featureTypes: ["numerical", "categorical"],
+			minSamplesLeaf: 1,
+			criterion: "mse",
+		});
+		// Feature 1 (categorical) is more discriminative
+		const X = [
+			[10, "X"],
+			[20, "Y"],
+			[30, "X"],
+			[40, "Y"],
+		];
+		const y = [100, 500, 110, 520]; // "X" maps to low values, "Y" to high
+		regressor.fit(X, y);
+		const importances = regressor.getFeatureImportances();
+
+		assert.strictEqual(importances.length, 2);
+		assert.ok(
+			importances[1] > importances[0],
+			"Categorical Feature 1 should be more important",
+		);
+		assert.strictEqual(Math.round(importances.reduce((a, b) => a + b, 0)), 1);
 	});
 });
