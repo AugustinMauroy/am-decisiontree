@@ -6,7 +6,7 @@ import {
 	rSquared,
 } from "./regression_metrics.ts";
 
-describe("Regression Metrics", () => {
+describe("Regression Metrics", { concurrency: true}, () => {
 	describe("Mean Absolute Error", () => {
 		it("should calculate MAE for a list of true and predicted values", () => {
 			const yTrue = [3, -0.5, 2, 7];
