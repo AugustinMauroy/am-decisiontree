@@ -1,106 +1,119 @@
-# Cahier des Charges : Bibliothèque d'Arbres de Décision en TypeScript
+# Specifications: Decision Tree Library in TypeScript
 
-## 1. Objectif Général
+## 1. General Objective
 
-Développer une bibliothèque TypeScript robuste, modulaire, performante et facile à utiliser pour la création, l'entraînement et l'utilisation de modèles d'arbres de décision pour des tâches de classification et de régression. La bibliothèque devra offrir une API claire et des fonctionnalités comparables en termes de complétude à une bibliothèque de réseaux de neurones moderne.
+Develop a robust, modular, high-performance, and easy-to-use TypeScript library for creating, training, and using decision tree models for classification and regression tasks. The library should offer a clear API and features comparable in completeness to a modern neural network library.
 
-## 2. Fonctionnalités Clés
+# 2. Key Features
 
-2.1. Types d'Arbres de Décision
-	* Arbre de Classification:
-		* Prédire des étiquettes de classe discrètes.
-		* Calculer les probabilités d'appartenance à chaque classe.
-	* Arbre de Régression:
-		* Prédire des valeurs continues.
+2.1. Types of Decision Trees
+	* Classification Tree: ✅
+	* Predict discrete class labels. ✅
+	* Calculate class membership probabilities. ✅
+	* Regression Tree: ✅
+	* Predict continuous values. ✅
 
-2.2. Construction de l'Arbre (Apprentissage / fit)
-	* Algorithmes de Construction:
-		* Implémentation d'un algorithme de base (ex: variante de CART).
-		* Critères de Division (Split Criteria):
-			* Pour la classification: Indice de Gini, Entropie (Gain d'information).
-			* Pour la régression: Erreur Quadratique Moyenne (MSE), Erreur Absolue Moyenne (MAE).
-		* Gestion des Types de Features:
-			* Features numériques (continues ou discrètes).
-			* Features catégorielles (avec gestion appropriée, ex: one-hot encoding implicite ou gestion native si possible).
-		* Paramètres de Contrôle de la Croissance:
-			* max_depth: Profondeur maximale de l'arbre.
-			* min_samples_split: Nombre minimum d'échantillons requis pour diviser un nœud interne.
-			* min_samples_leaf: Nombre minimum d'échantillons requis dans un nœud feuille.
-			* min_impurity_decrease: Seuil minimal de réduction de l'impureté pour effectuer une division.
-		* Gestion des Valeurs Manquantes (Optionnel, pour complétude avancée):
-			* Stratégies de base pour gérer les NaN (ex: imputation simple, envoi des échantillons dans les deux branches avec pondération).
+2.2. Tree Construction (Learning / fit)
+	* Construction Algorithms: ✅
+		* Implementation of a basic algorithm (e.g., CART variant). ✅ * Split Criteria: ✅
+		* For classification: Gini Index, Entropy (Information Gain). ✅
+		* Gini Index is implemented in calculateGiniImpurity.
+		* Entropy is implemented in calculateEntropy.
+		* For regression: Mean Squared Error (MSE), Mean Absolute Error (MAE). ✅
+		* MSE is implemented in calculateMSE.
+		* MAE is implemented in calculateMAE.
+		* Feature Type Management: ✅
+		* Numerical features (continuous or discrete). ✅
+		* Categorical features (with appropriate management, e.g., implicit one-hot encoding or native handling if possible). ✅
+		* Growth Control Parameters: ✅
+			* max_depth: Maximum tree depth. ✅ (Implemented as maxDepth in DecisionTreeParameters) * min_samples_split: Minimum number of samples required to split an internal node. ✅
+			* min_samples_leaf: Minimum number of samples required in a leaf node. ✅
+			* min_impurity_decrease: Minimum impurity decrease threshold to perform a split. ✅
+		* Missing Value Management (Optional, for advanced completeness): ✅
+		* Basic strategies for handling NaNs (e.g., simple imputation, sending samples to both branches with weighting). ✅
 
-2.3. Prédiction (predict, predict_proba)
-	* Traversée efficace de l'arbre pour de nouvelles instances.
-	* predict(X): Retourne les prédictions (classes ou valeurs).
-	* predict_proba(X) (pour classification): Retourne les probabilités des classes.
+2.3. Prediction (predict, predict_proba) ✅
+	* Efficient tree traversal for new instances. ✅
+	* predict(X): Returns predictions (classes or values). ✅
+	* predict_proba(X) (for classification): Returns class probabilities. ✅
 
-2.4. Élagage (Pruning)
-	* Mécanismes pour réduire le surapprentissage.
-	* Exemple: Élagage basé sur la complexité du coût (Cost-Complexity Pruning) minimal.
-	* Paramètres configurables pour l'élagage.
+2.4. Pruning ✅
+	* Mechanisms to reduce overfitting. ✅
+	* Example: Minimal Cost-Complexity Pruning. ✅
+	* Configurable pruning parameters. ✅
 
-2.5. Évaluation du Modèle
-	* Fournir des fonctions ou s'intégrer avec des utilitaires pour calculer des métriques de performance courantes :
-		* Classification: Accuracy, Précision, Rappel, Score F1, Matrice de Confusion.
-		* Régression: MSE, MAE, R².
+2.5. Model Evaluation ✅
+	* Provide functions or integrate with utilities to calculate common performance metrics: ✅
+	* Classification: Accuracy, Precision, Recall, F1 Score, Confusion Matrix. ✅
+		* Accuracy: accuracyScore ✅
+		* Precision: precisionScore ✅
+		* Recall: recallScore ✅
+		* F1 Score: f1Score ✅
+		* Confusion Matrix: confusionMatrix ✅
+		* Regression: MSE, MAE, R². ✅
+		* MSE: meanSquaredError ✅
+		* MAE: meanAbsoluteError ✅
+		* R²: rSquared ✅
 
-2.6. Importance des Features
-	* Calculer et exposer l'importance de chaque feature dans le modèle entraîné (ex: basée sur la réduction moyenne de l'impureté).
+2.6. Feature Importance ✅
+	* Calculate and expose the importance of each feature in the trained model (e.g., based on mean impurity reduction). ✅
 
-2.7. Sérialisation et Désérialisation
-	* Sauvegarder la structure et les paramètres d'un arbre entraîné (ex: au format JSON).
-	* Charger un modèle sauvegardé pour réutilisation.
+2.7. Serialization and Deserialization ✅
+	* Save the structure and parameters of a trained tree (e.g., in JSON format). ✅
+	* Load a saved model for reuse. ✅
 
-2.8. (Avancé) Ensembles d'Arbres - Pour une Complétude Maximale
-	* Random Forest (Forêt Aléatoire): * Pour la classification et la régression.
-	* Construction de multiples arbres sur des sous-ensembles d'échantillons (bagging) et de features.
-	* Agrégation des prédictions (vote majoritaire pour classification, moyenne pour régression).
-	* Paramètres spécifiques: n_estimators (nombre d'arbres), max_features (nombre de features à considérer pour chaque split).
+2.8. (Advanced) Tree Ensembles - For Maximum Completeness ❌
+	* Random Forest:
+		* For classification and regression. ❌
+		* Construction of multiple trees on subsets of samples (bagging) and features. ❌
+		* Aggregation of predictions (majority vote for classification, average for regression). ❌
+		* Specific parameters: n_estimators (number of trees), max_features (number of features to consider for each split). ❌
 
-## 3. Architecture et Conception
+## 3. Architecture and Design
 
-3.1. Modularité:
-	* Séparation claire des responsabilités:
-	* Structure de Nœud (Node).
-	* Structure d'Arbre (Tree).
-	* Logique des critères de division.
-	* Algorithmes d'apprentissage.
-	* Fonctions de prédiction.
+3.1. Modularity:
+	* Clear separation of responsibilities:
+	* Node Structure (Node). ✅
+	* Tree Structure.✅
+	* Split criteria logic. ✅
+	* Learning algorithms. ✅
+	* Prediction functions. ✅
+
 3.2. API:
-	* Interface utilisateur intuitive et cohérente, s'inspirant potentiellement d'APIs populaires (ex: scikit-learn).
-	* Méthodes principales: fit(X, y), predict(X), predict_proba(X).
-	* Configuration du modèle via des paramètres au constructeur ou des méthodes dédiées.
-3.3. Typage:
-	* Utilisation rigoureuse de TypeScript pour la robustesse et la clarté du code.
-	* Définition de types clairs pour les données d'entrée, les paramètres et les sorties.
+	* Intuitive and consistent user interface, potentially inspired by popular APIs (e.g., scikit-learn). ✅
+	* Main methods: fit(X, y), predict(X), predict_proba(X). ✅
+	* Model configuration via constructor parameters or dedicated methods. ✅ (Constructor parameters)
+
+3.3. Typing:
+	* Rigorous use of TypeScript for code robustness and clarity. ✅
+	* Clear type definitions for input data, parameters, and outputs. ✅ (e.g. XInput, YInputClassification, YInputRegression, DecisionTreeParameters)
+
 3.4. Performance:
-	* Optimisation des algorithmes de construction et de prédiction pour une bonne performance, notamment avec de grands datasets.
-	* Utilisation de structures de données efficaces.
-3.5. Extensibilité:
-	* Conception permettant d'ajouter facilement de nouveaux critères de division, stratégies d'élagage ou même de nouveaux types d'arbres/ensembles à l'avenir.
+	* Optimization of construction and prediction algorithms for good performance, especially with large datasets. 🏗️ (Basic optimizations are in place, further profiling and optimization could be a continuous effort)
+	* Use of efficient data structures. 🏗️ (Standard arrays and objects are used; more specialized structures could be considered for extreme performance needs)
 
-## 4. Données d'Entrée et de Sortie
+3.5. Extensibility:
+	* Design allowing easy addition of new split criteria, pruning strategies, or even new types of trees/ensembles in the future. ✅
 
-Entrée (X): Accepter des tableaux 2D (ou structures similaires) de nombres pour les features. Pour les features catégorielles, définir une convention (ex: pré-encodées numériquement ou gestion interne).
-Cibles (y): Accepter des tableaux 1D de nombres (pour régression) ou d'étiquettes (numériques ou chaînes pour classification).
-Sortie de predict: Tableau 1D des prédictions.
-Sortie de predict_proba: Tableau 2D des probabilités par classe.
+## 4. Input and Output Data
 
-## 5. Documentation et Tests
+Input (X): Accept 2D arrays (or similar structures) of numbers for features. For categorical features, define a convention (e.g., pre-encoded numerically or internal handling). ✅ (XInput and featureTypes parameter) Targets (y): Accept 1D arrays of numbers (for regression) or labels (numeric or strings for classification). ✅ (YInputClassification, YInputRegression) Output of predict: 1D array of predictions. ✅ Output of predict_proba: 2D array of class probabilities. ✅
+
+## 5. Documentation and Tests
 
 5.1. Documentation:
-	* Documentation complète de l'API (chaque classe, méthode, paramètre).
-	* Tutoriels et exemples d'utilisation pour la classification et la régression.
-	* Explication des concepts clés et des algorithmes implémentés.
+	* Complete API documentation (each class, method, parameter). 🏗️ (JSDoc comments are present but could be more comprehensive for a full API documentation)
+	* Tutorials and usage examples for classification and regression. ✅
+	* Explanation of key concepts and implemented algorithms. 🏗️
+
 5.2. Tests:
-	* Couverture de tests unitaires exhaustive pour tous les modules.
-	* Tests d'intégration pour valider le flux complet (entraînement, prédiction, évaluation).
-	* Tests de non-régression.
+	* Exhaustive unit test coverage for all modules. ✅
+	* Integration tests to validate the complete flow (training, prediction, evaluation). ✅
+	* Non-regression tests. ✅
 
-## 6.
+# 6. Proposed Directory Structure (matches current structure)
 
-```txt
+```
 am-decisiontree
 ├── .gitattributes
 ├── .gitignore
@@ -112,25 +125,21 @@ am-decisiontree
 ├── README.md
 ├── tsconfig.json
 ├── .github/
-│   └── workflows/  // Optionnel
+│   └── workflows/  // Optional (Implemented)
 │       ├── ci.yml
 │       └── ...
-├── .vscode/
-│   └── settings.json
 ├── examples/
-│   ├── iris_classification.ts
+│   ├── iris_classification.ts // Not present, but similar examples exist
 │   ├── simple_classifier.ts
-│   └── regression_tree_example.ts
+│   └── regression_tree_example.ts // Renamed to simple_regresion.ts
 └── src/
-    ├── core/
+    ├── core/ // Merged into src/ directly
     │   ├── mod.ts
     │   ├── decision_tree.ts
     │   └── node.ts
-    ├── criteria/
-    │   ├── mod.ts
-    │   ├── gini_impurity.ts
-    │   ├── entropy.ts
-    │   └── mse_criterion.ts
-    └── utils/      // Optionnel
-        └── mod.ts
-```
+    └── criteria/
+        ├── mod.ts // Not present, exports are in src/mod.ts
+        ├── gini_impurity.ts
+        ├── entropy.ts
+        └── mse_criterion.ts
+````

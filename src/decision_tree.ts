@@ -455,8 +455,10 @@ abstract class BaseDecisionTree<
 				if (uniqueCategories.length === 2) {
 					potentialCategorySplits.push(new Set([uniqueCategories[0]]));
 				} else if (uniqueCategories.length > 2) {
-					const categoryMetrics: { category: string | number; metric: number }[] =
-						[];
+					const categoryMetrics: {
+						category: string | number;
+						metric: number;
+					}[] = [];
 					if (this instanceof DecisionTreeClassifier) {
 						const firstClass = this.getFirstUniqueClass();
 						if (firstClass === undefined) continue; // Should not happen if y_nonMissing is not empty
