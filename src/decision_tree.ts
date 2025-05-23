@@ -39,7 +39,7 @@ export type YInput = YInputClassification | YInputRegression;
 /**
  * Parameters for configuring the decision tree.
  */
-export interface DecisionTreeParameters<Y_TYPE extends YInput> {
+export interface DecisionTreeParameters<Y_IN extends YInput = YInput> {
 	/** The criterion used to measure the quality of a split. */
 	criterion?: Criterion;
 
@@ -60,6 +60,15 @@ export interface DecisionTreeParameters<Y_TYPE extends YInput> {
 
 	/** The complexity parameter used for Minimal Cost-Complexity Pruning. Greater values increase pruning. Defaults to 0 (no pruning). */
 	ccpAlpha?: number;
+
+	/** Number of features to consider when looking for the best split.
+	 * If int, then consider maxFeaturesForSplit features at each split.
+	 * If float, then maxFeaturesForSplit is a percentage and int(maxFeaturesForSplit * n_features) features are considered at each split.
+	 * If "sqrt", then maxFeaturesForSplit=sqrt(n_features).
+	 * If "log2", then maxFeaturesForSplit=log2(n_features).
+	 * If null, then maxFeaturesForSplit=n_features.
+	 */
+	maxFeaturesForSplit?: number | "sqrt" | "log2" | null; // New parameter
 }
 
 /**
@@ -68,7 +77,7 @@ export interface DecisionTreeParameters<Y_TYPE extends YInput> {
  * @template Y_IN - The type of the target values.
  * @template P_OUT - The type of the predicted output values.
  */
-abstract class BaseDecisionTree<
+export abstract class BaseDecisionTree<
 	X_IN extends XInput,
 	Y_IN extends YInput,
 	P_OUT extends NodeValue,
@@ -103,6 +112,9 @@ abstract class BaseDecisionTree<
 	/** Stores the type of each feature ('numerical' or 'categorical'). */
 	protected featureTypes_?: ("numerical" | "categorical")[];
 
+	/** Number of features to consider when looking for the best split. */
+	protected maxFeaturesForSplit_?: number | "sqrt" | "log2" | null;
+
 	/**
 	 * Creates a new instance of a decision tree.
 	 * @param params - The parameters to configure the decision tree.
@@ -123,6 +135,7 @@ abstract class BaseDecisionTree<
 				: params.minImpurityDecrease;
 		this.featureTypes_ = params.featureTypes;
 		this.ccpAlpha = params.ccpAlpha === undefined ? 0.0 : params.ccpAlpha;
+		this.maxFeaturesForSplit_ = params.maxFeaturesForSplit ?? null;
 	}
 
 	/**
@@ -334,7 +347,9 @@ abstract class BaseDecisionTree<
 		const nSamplesInNode = X.length;
 		if (this.nFeatures === undefined || this.nFeatures === 0) return null;
 
-		for (let featureIdx = 0; featureIdx < this.nFeatures; featureIdx++) {
+		const featuresToConsider = this._getFeaturesToConsider(this.nFeatures);
+
+		for (const featureIdx of featuresToConsider) {
 			const featureType = this.featureTypes_?.[featureIdx] || "numerical";
 
 			const nonMissingData: {
@@ -746,6 +761,80 @@ abstract class BaseDecisionTree<
 			// For regressor, no extra specific state beyond base
 			ccpAlpha: this.ccpAlpha,
 		});
+	}
+
+	/**
+	 * Loads the decision tree structure from a JSON string.
+	 * @param json - The JSON string representing the decision tree.
+	 */
+	public fromJSON(json: string): void {
+		const data = JSON.parse(json);
+		this.root = deserializeNode(data.root);
+		this.criterion = data.criterion;
+		this.maxDepth = data.maxDepth;
+		this.minSamplesSplit = data.minSamplesSplit;
+		this.minSamplesLeaf = data.minSamplesLeaf;
+		this.minImpurityDecrease = data.minImpurityDecrease;
+		this.nFeatures = data.nFeatures;
+		this.ccpAlpha = data.ccpAlpha;
+		this.featureTypes_ = data.featureTypes;
+		this.featureImportances_ = data.featureImportances;
+		this.maxFeaturesForSplit_ = data.maxFeaturesForSplit;
+	}
+
+	/**
+	 * Helper function to get the subset of features to consider for splitting.
+	 * @param nTotalFeatures - The total number of features.
+	 */
+	private _getFeaturesToConsider(nTotalFeatures: number): number[] {
+		const allFeatureIndices = Array.from(
+			{ length: nTotalFeatures },
+			(_, i) => i,
+		);
+		if (
+			!this.maxFeaturesForSplit_ ||
+			this.maxFeaturesForSplit_ === nTotalFeatures
+		) {
+			return allFeatureIndices;
+		}
+
+		let numFeaturesToSelect: number;
+		if (this.maxFeaturesForSplit_ === "sqrt") {
+			numFeaturesToSelect = Math.round(Math.sqrt(nTotalFeatures));
+		} else if (this.maxFeaturesForSplit_ === "log2") {
+			numFeaturesToSelect = Math.round(Math.log2(nTotalFeatures));
+		} else if (typeof this.maxFeaturesForSplit_ === "number") {
+			if (this.maxFeaturesForSplit_ <= 1.0 && this.maxFeaturesForSplit_ > 0) {
+				// Assume fraction
+				numFeaturesToSelect = Math.round(
+					this.maxFeaturesForSplit_ * nTotalFeatures,
+				);
+			} else {
+				// Assume absolute number
+				numFeaturesToSelect = this.maxFeaturesForSplit_;
+			}
+		} else {
+			return allFeatureIndices; // Default to all features if invalid
+		}
+
+		numFeaturesToSelect = Math.max(
+			1,
+			Math.min(numFeaturesToSelect, nTotalFeatures),
+		);
+
+		// Use Fisher-Yates shuffle for unbiased randomness
+		this._fisherYatesShuffle(allFeatureIndices);
+		return allFeatureIndices.slice(0, numFeaturesToSelect);
+	}
+	/**
+	 * Fisher-Yates shuffle algorithm for unbiased shuffling.
+	 * @param array - The array to shuffle.
+	 */
+	private _fisherYatesShuffle(array: number[]): void {
+		for (let i = array.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[array[i], array[j]] = [array[j], array[i]];
+		}
 	}
 }
 
