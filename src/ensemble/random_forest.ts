@@ -30,7 +30,6 @@ export interface RandomForestParameters<
 > extends DecisionTreeParameters<Y_IN> {
 	nEstimators?: number;
 	bootstrap?: boolean;
-	// randomState for reproducibility could be added
 }
 
 abstract class BaseRandomForest<
@@ -50,8 +49,6 @@ abstract class BaseRandomForest<
 		this.trees = [];
 		// Pass through DecisionTree specific parameters
 		this.treeParams = { ...params };
-		this.treeParams.nEstimators = undefined; // Not a DT param
-		this.treeParams.bootstrap = undefined; // Not a DT param
 	}
 
 	protected abstract createTree(
