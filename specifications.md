@@ -62,12 +62,12 @@ Develop a robust, modular, high-performance, and easy-to-use TypeScript library 
 	* Save the structure and parameters of a trained tree (e.g., in JSON format). ✅
 	* Load a saved model for reuse. ✅
 
-2.8. (Advanced) Tree Ensembles - For Maximum Completeness ❌
+2.8. (Advanced) Tree Ensembles - For Maximum Completeness ✅
 	* Random Forest:
-		* For classification and regression. ❌
-		* Construction of multiple trees on subsets of samples (bagging) and features. ❌
-		* Aggregation of predictions (majority vote for classification, average for regression). ❌
-		* Specific parameters: n_estimators (number of trees), max_features (number of features to consider for each split). ❌
+		* For classification and regression. ✅
+		* Construction of multiple trees on subsets of samples (bagging) and features. ✅
+		* Aggregation of predictions (majority vote for classification, average for regression). ✅
+		* Specific parameters: n_estimators (number of trees), max_features (number of features to consider for each split). ✅
 
 ## 3. Architecture and Design
 
@@ -102,7 +102,7 @@ Input (X): Accept 2D arrays (or similar structures) of numbers for features. For
 ## 5. Documentation and Tests
 
 5.1. Documentation:
-	* Complete API documentation (each class, method, parameter). 🏗️ (JSDoc comments are present but could be more comprehensive for a full API documentation)
+	* Complete API documentation (each class, method, parameter). ✅ (JSDoc comments are present but could be more comprehensive for a full API documentation)
 	* Tutorials and usage examples for classification and regression. ✅
 	* Explanation of key concepts and implemented algorithms. 🏗️
 
