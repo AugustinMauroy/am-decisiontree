@@ -822,9 +822,19 @@ export abstract class BaseDecisionTree<
 			Math.min(numFeaturesToSelect, nTotalFeatures),
 		);
 
-		// Simple shuffle and pick (you might want a more robust shuffle)
-		const shuffled = allFeatureIndices.sort(() => 0.5 - Math.random());
-		return shuffled.slice(0, numFeaturesToSelect);
+		// Use Fisher-Yates shuffle for unbiased randomness
+		this._fisherYatesShuffle(allFeatureIndices);
+		return allFeatureIndices.slice(0, numFeaturesToSelect);
+	}
+	/**
+	 * Fisher-Yates shuffle algorithm for unbiased shuffling.
+	 * @param array - The array to shuffle.
+	 */
+	private _fisherYatesShuffle(array: number[]): void {
+		for (let i = array.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[array[i], array[j]] = [array[j], array[i]];
+		}
 	}
 }
 
