@@ -764,6 +764,25 @@ export abstract class BaseDecisionTree<
 	}
 
 	/**
+	 * Loads the decision tree structure from a JSON string.
+	 * @param json - The JSON string representing the decision tree.
+	 */
+	public fromJSON(json: string): void {
+		const data = JSON.parse(json);
+		this.root = deserializeNode(data.root);
+		this.criterion = data.criterion;
+		this.maxDepth = data.maxDepth;
+		this.minSamplesSplit = data.minSamplesSplit;
+		this.minSamplesLeaf = data.minSamplesLeaf;
+		this.minImpurityDecrease = data.minImpurityDecrease;
+		this.nFeatures = data.nFeatures;
+		this.ccpAlpha = data.ccpAlpha;
+		this.featureTypes_ = data.featureTypes;
+		this.featureImportances_ = data.featureImportances;
+		this.maxFeaturesForSplit_ = data.maxFeaturesForSplit;
+	}
+
+	/**
 	 * Helper function to get the subset of features to consider for splitting.
 	 * @param nTotalFeatures - The total number of features.
 	 */
