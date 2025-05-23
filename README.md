@@ -4,19 +4,35 @@
 
 `@am/decisiontree` is a TypeScript library for creating and using decision tree models for classification and regression tasks. It aims to be straightforward to use while providing core functionalities for building effective tree-based models.
 
-The library is designed to be cross-runtime compatible, allowing usage in Node.js, Deno, Bun, and modern browsers.
+The library is designed to be cross-runtime compatible, allowing usage in [Node.js](https://nodejs.org), [Deno](https://deno.com), [Bun](https://bun.sh), and modern browsers.
+
+## Key Features
+
+* **Classification and Regression Trees**: Implements `DecisionTreeClassifier` for categorical targets and `DecisionTreeRegressor` for continuous targets.
+* **Splitting Criteria**:
+  * Classification: Gini Impurity `gini`, Entropy `entropy`.
+  * Regression: Mean Squared Error`mse`, Mean Absolute Error `mae`.
+* **Growth Control Parameters**: Fine-tune tree complexity with `maxDepth`, `minSamplesSplit`, `minSamplesLeaf`, `minImpurityDecrease`.
+* **Feature Handling**: Supports both numerical and categorical features (via the `featureTypes` parameter in `DecisionTreeParameters`).
+* **Feature Importance**: Calculate feature importances using the `getFeatureImportances()` method on a fitted model.
+* **Model Evaluation**: Provides utility functions for evaluating model performance:
+    * Classification: `accuracyScore`, `precisionScore`, `recallScore`, `f1Score`, `confusionMatrix`.
+    * Regression: `meanSquaredError`, `meanAbsoluteError`.
+* **Serialization**: Save trained models to JSON and load them back using `toJSON()` and `fromJSON(json)` methods (available on `DecisionTreeClassifier` and `DecisionTreeRegressor`).
+* **Ensemble Methods**: Includes `RandomForestClassifier` and `RandomForestRegressor` for building more robust models.
 
 ## How to construct and use a Decision Tree
 
 Using `@am/decisiontree` involves these main steps:
 
-1.  **Import necessary classes**:
-    ```typescript
-    import { DecisionTreeClassifier, DecisionTreeRegressor } from "@am/decisiontree";
-    ```
-2.  **Prepare your data**:
-    *   `X`: An array of arrays, where each inner array represents a sample's features (numeric).
-    *   `y`: An array of target values. For classification, these are class labels (string or number). For regression, these are continuous numeric values.
+1. **Import necessary classes**:
+	```typescript
+	import { DecisionTreeClassifier, DecisionTreeRegressor } from "@am/decisiontree";
+	```
+
+2. **Prepare your data**:
+    * `X`: An array of arrays, where each inner array represents a sample's features (numeric).
+    * `y`: An array of target values. For classification, these are class labels (string or number). For regression, these are continuous numeric values.
     ```typescript
     // Example for Classification
     const X_train_clf: number[][] = [[10], [12], [15], [18], [20], [22]];
@@ -26,7 +42,8 @@ Using `@am/decisiontree` involves these main steps:
     const X_train_reg: number[][] = [[1], [2], [3], [4], [5]];
     const y_train_reg: number[] = [10, 20, 30, 40, 50];
     ```
-3.  **Instantiate the Model**: Create an instance of `DecisionTreeClassifier` or `DecisionTreeRegressor`. You can specify parameters like `criterion`, `maxDepth`, `minSamplesSplit`, etc.
+
+3. **Instantiate the Model**: Create an instance of `DecisionTreeClassifier` or `DecisionTreeRegressor`. You can specify parameters like `criterion`, `maxDepth`, `minSamplesSplit`, etc.
     ```typescript
     // For Classification
     const classifier = new DecisionTreeClassifier({
@@ -41,12 +58,14 @@ Using `@am/decisiontree` involves these main steps:
         maxDepth: 4,
     });
     ```
-4.  **Train the Model**: Use the `fit` method with your training data.
+
+4. **Train the Model**: Use the `fit` method with your training data.
     ```typescript
     classifier.fit(X_train_clf, y_train_clf);
     regressor.fit(X_train_reg, y_train_reg);
     ```
-5.  **Make Predictions**:
+
+5. **Make Predictions**:
     *   Use the `predict` method with new input data (`X_test`) to get predictions.
     *   For `DecisionTreeClassifier`, you can also use `predictProba` to get class probabilities.
     ```typescript
@@ -57,7 +76,8 @@ Using `@am/decisiontree` involves these main steps:
     const X_test_reg: number[][] = [[2.5], [4.5]];
     const predictions_reg = regressor.predict(X_test_reg);
     ```
-6.  **Evaluate the Model (Optional)**: Use metrics functions from the library (e.g., `accuracyScore`, `meanSquaredError`) to evaluate performance.
+
+6. **Evaluate the Model (Optional)**: Use metrics functions from the library (e.g., `accuracyScore`, `meanSquaredError`) to evaluate performance.
     ```typescript
     import { accuracyScore, meanSquaredError } from "@am/decisiontree";
 
@@ -65,7 +85,8 @@ Using `@am/decisiontree` involves these main steps:
     // const acc = accuracyScore(y_test_clf, predictions_clf);
     // const mse = meanSquaredError(y_test_reg, predictions_reg);
     ```
-7.  **Inspect Feature Importances**:
+
+7. **Inspect Feature Importances**:
     ```typescript
     const importances_clf = classifier.getFeatureImportances();
     console.log("Classifier Feature Importances:", importances_clf);

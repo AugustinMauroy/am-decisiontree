@@ -6,3 +6,4 @@ export * from "./criteria/mse_criterion.ts";
 export * from "./criteria/mae_criterion.ts";
 export * from "./evaluation/classification_metrics.ts";
 export * from "./evaluation/regression_metrics.ts";
+export * from "./ensemble/random_forest.ts";
