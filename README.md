@@ -1,6 +1,7 @@
 # Decision Tree
 
 [![JSR](https://jsr.io/badges/@am/decisiontree)](https://jsr.io/@am/decisiontree)
+[![codecov](https://codecov.io/gh/AugustinMauroy/am-decisiontree/graph/badge.svg?token=YMPW5PAI29)](https://codecov.io/gh/AugustinMauroy/am-decisiontree)
 
 `@am/decisiontree` is a TypeScript library for creating and using decision tree models for classification and regression tasks. It aims to be straightforward to use while providing core functionalities for building effective tree-based models.
 
