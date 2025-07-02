@@ -39,7 +39,7 @@ export type YInput = YInputClassification | YInputRegression;
 /**
  * Parameters for configuring the decision tree.
  */
-export interface DecisionTreeParameters<Y_IN extends YInput = YInput> {
+export interface DecisionTreeParameters<_Y_IN extends YInput = YInput> {
 	/** The criterion used to measure the quality of a split. */
 	criterion?: Criterion;
 
@@ -326,7 +326,7 @@ export abstract class BaseDecisionTree<
 	private _findBestSplit(
 		X: X_IN,
 		y: Y_IN,
-		parentImpurity: number, // Impurity of all samples at the current node
+		_parentImpurity: number, // Impurity of all samples at the current node
 	): {
 		featureIndex: number;
 		threshold?: number;
