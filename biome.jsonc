@@ -6,11 +6,11 @@
 		"useIgnoreFile": false
 	},
 	"assist": {
-			"actions": {
-				"source": {
-					"organizeImports": "off"
-				}
+		"actions": {
+			"source": {
+				"organizeImports": "off"
 			}
+		}
 	},
 	"files": {
 		"includes": ["**/*.js", "**/*.ts", "**/*.json", "!**/package-lock.json"]
