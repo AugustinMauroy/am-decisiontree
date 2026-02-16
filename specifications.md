@@ -89,8 +89,8 @@ Develop a robust, modular, high-performance, and easy-to-use TypeScript library 
 	* Clear type definitions for input data, parameters, and outputs. ✅ (e.g. XInput, YInputClassification, YInputRegression, DecisionTreeParameters)
 
 3.4. Performance:
-	* Optimization of construction and prediction algorithms for good performance, especially with large datasets. 🏗️ (Basic optimizations are in place, further profiling and optimization could be a continuous effort)
-	* Use of efficient data structures. 🏗️ (Standard arrays and objects are used; more specialized structures could be considered for extreme performance needs)
+	* Optimization of construction and prediction algorithms for good performance, especially with large datasets. ✅ (Basic optimizations are in place, further profiling and optimization could be a continuous effort)
+	* Use of efficient data structures. ✅ (Standard arrays and objects are used; more specialized structures could be considered for extreme performance needs)
 
 3.5. Extensibility:
 	* Design allowing easy addition of new split criteria, pruning strategies, or even new types of trees/ensembles in the future. ✅

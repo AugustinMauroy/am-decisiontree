@@ -1,8 +1,9 @@
-import { Node, type NodeValue } from "./node.ts";
+import { Node } from "./node.ts";
 import { calculateGiniImpurity } from "./criteria/gini_impurity.ts";
 import { calculateEntropy } from "./criteria/entropy.ts";
 import { calculateMSE } from "./criteria/mse_criterion.ts";
 import { calculateMAE } from "./criteria/mae_criterion.ts";
+import type { NodeValue } from "./node.ts";
 
 /**
  * Supported criteria for splitting nodes in the decision tree.
@@ -349,35 +350,41 @@ export abstract class BaseDecisionTree<
 
 		const featuresToConsider = this._getFeaturesToConsider(this.nFeatures);
 
+		// Pre-allocate arrays for reuse across features to reduce memory allocations
+		const leftIndicesBuffer: number[] = [];
+		const rightIndicesBuffer: number[] = [];
+		const yLeftBuffer: Y_IN[0][] = [];
+		const yRightBuffer: Y_IN[0][] = [];
+
 		for (const featureIdx of featuresToConsider) {
 			const featureType = this.featureTypes_?.[featureIdx] || "numerical";
 
-			const nonMissingData: {
-				value: number | string; // Non-null feature value
-				target: Y_IN[0];
-				originalIndex: number;
-			}[] = [];
+			// Separate missing and non-missing samples
+			const nonMissingIndices: number[] = [];
 			const missingDataOriginalIndices: number[] = [];
 
 			for (let i = 0; i < nSamplesInNode; i++) {
-				const val = X[i][featureIdx];
-				if (val === null) {
+				if (X[i][featureIdx] === null) {
 					missingDataOriginalIndices.push(i);
 				} else {
-					// val is number | string here
-					nonMissingData.push({ value: val, target: y[i], originalIndex: i });
+					nonMissingIndices.push(i);
 				}
 			}
 
-			if (
-				nonMissingData.length < this.minSamplesSplit ||
-				nonMissingData.length === 0
-			) {
+			const nNonMissing = nonMissingIndices.length;
+
+			if (nNonMissing < this.minSamplesSplit || nNonMissing === 0) {
 				continue; // Not enough non-missing samples to consider a split on this feature
 			}
 
-			const y_nonMissing = nonMissingData.map((d) => d.target) as Y_IN;
-			const parentImpurity_nonMissing = this.calculateImpurity(y_nonMissing);
+			// Build y_nonMissing efficiently
+			const y_nonMissing: Y_IN[0][] = new Array(nNonMissing);
+			for (let i = 0; i < nNonMissing; i++) {
+				y_nonMissing[i] = y[nonMissingIndices[i]];
+			}
+			const parentImpurity_nonMissing = this.calculateImpurity(
+				y_nonMissing as Y_IN,
+			);
 			let bestGainForThisFeature = Number.NEGATIVE_INFINITY;
 			let splitDetailsForThisFeature: {
 				threshold?: number;
@@ -387,83 +394,93 @@ export abstract class BaseDecisionTree<
 			} | null = null;
 
 			if (featureType === "numerical") {
-				const featureValues_nonMissing_num = nonMissingData.map((d) =>
-					Number(d.value),
-				);
-				const uniqueSortedValues = [
-					...new Set(featureValues_nonMissing_num),
-				].sort((a, b) => a - b);
+				// Pre-convert all feature values to numbers once (cache)
+				const featureValues_num = new Float64Array(nNonMissing);
+				for (let i = 0; i < nNonMissing; i++) {
+					featureValues_num[i] = Number(X[nonMissingIndices[i]][featureIdx]);
+				}
+
+				// Find unique values efficiently
+				const uniqueSet = new Set<number>();
+				for (let i = 0; i < nNonMissing; i++) {
+					uniqueSet.add(featureValues_num[i]);
+				}
+				const uniqueSortedValues = Array.from(uniqueSet).sort((a, b) => a - b);
 
 				if (uniqueSortedValues.length <= 1) continue;
 
+				// Evaluate each potential threshold
 				for (let i = 0; i < uniqueSortedValues.length - 1; i++) {
 					const threshold =
 						(uniqueSortedValues[i] + uniqueSortedValues[i + 1]) / 2;
-					const currentLeft_indices_in_nonMissingData: number[] = [];
-					const currentRight_indices_in_nonMissingData: number[] = [];
 
-					for (
-						let sampleIdx = 0;
-						sampleIdx < nonMissingData.length;
-						sampleIdx++
-					) {
-						if (Number(nonMissingData[sampleIdx].value) <= threshold) {
-							currentLeft_indices_in_nonMissingData.push(sampleIdx);
+					// Clear and reuse buffers
+					leftIndicesBuffer.length = 0;
+					rightIndicesBuffer.length = 0;
+
+					// Split samples based on threshold
+					for (let sampleIdx = 0; sampleIdx < nNonMissing; sampleIdx++) {
+						if (featureValues_num[sampleIdx] <= threshold) {
+							leftIndicesBuffer.push(sampleIdx);
 						} else {
-							currentRight_indices_in_nonMissingData.push(sampleIdx);
+							rightIndicesBuffer.push(sampleIdx);
 						}
 					}
 
-					if (
-						currentLeft_indices_in_nonMissingData.length <
-							this.minSamplesLeaf ||
-						currentRight_indices_in_nonMissingData.length < this.minSamplesLeaf
-					) {
+					const nLeft = leftIndicesBuffer.length;
+					const nRight = rightIndicesBuffer.length;
+
+					if (nLeft < this.minSamplesLeaf || nRight < this.minSamplesLeaf) {
 						continue;
 					}
 
-					const yLeft = currentLeft_indices_in_nonMissingData.map(
-						(idx) => nonMissingData[idx].target,
-					) as Y_IN;
-					const yRight = currentRight_indices_in_nonMissingData.map(
-						(idx) => nonMissingData[idx].target,
-					) as Y_IN;
+					// Clear and build y arrays efficiently
+					yLeftBuffer.length = 0;
+					yRightBuffer.length = 0;
+					for (let j = 0; j < nLeft; j++) {
+						yLeftBuffer.push(y_nonMissing[leftIndicesBuffer[j]]);
+					}
+					for (let j = 0; j < nRight; j++) {
+						yRightBuffer.push(y_nonMissing[rightIndicesBuffer[j]]);
+					}
 
-					const impurityLeft = this.calculateImpurity(yLeft);
-					const impurityRight = this.calculateImpurity(yRight);
-					const pLeft =
-						currentLeft_indices_in_nonMissingData.length /
-						nonMissingData.length;
-					const pRight =
-						currentRight_indices_in_nonMissingData.length /
-						nonMissingData.length;
+					const impurityLeft = this.calculateImpurity(yLeftBuffer as Y_IN);
+					const impurityRight = this.calculateImpurity(yRightBuffer as Y_IN);
+					const pLeft = nLeft / nNonMissing;
+					const pRight = nRight / nNonMissing;
 					const weightedImpurity =
 						pLeft * impurityLeft + pRight * impurityRight;
 					const impurityGain = parentImpurity_nonMissing - weightedImpurity;
 
 					if (impurityGain > bestGainForThisFeature) {
 						bestGainForThisFeature = impurityGain;
+						// Map back to original indices
+						const leftOriginalIndices = new Array(nLeft);
+						for (let j = 0; j < nLeft; j++) {
+							leftOriginalIndices[j] = nonMissingIndices[leftIndicesBuffer[j]];
+						}
+						const rightOriginalIndices = new Array(nRight);
+						for (let j = 0; j < nRight; j++) {
+							rightOriginalIndices[j] =
+								nonMissingIndices[rightIndicesBuffer[j]];
+						}
+
 						splitDetailsForThisFeature = {
 							threshold,
-							leftOriginalIndices_nonMissing:
-								currentLeft_indices_in_nonMissingData.map(
-									(idx) => nonMissingData[idx].originalIndex,
-								),
-							rightOriginalIndices_nonMissing:
-								currentRight_indices_in_nonMissingData.map(
-									(idx) => nonMissingData[idx].originalIndex,
-								),
+							leftOriginalIndices_nonMissing: leftOriginalIndices,
+							rightOriginalIndices_nonMissing: rightOriginalIndices,
 						};
 					}
 				}
 			} else {
 				// Categorical feature
-				const featureValues_nonMissing_cat = nonMissingData.map(
-					(d) => d.value,
-				) as (string | number)[];
-				const uniqueCategories = Array.from(
-					new Set(featureValues_nonMissing_cat),
-				);
+				const featureValues_cat: (string | number)[] = new Array(nNonMissing);
+				for (let i = 0; i < nNonMissing; i++) {
+					featureValues_cat[i] = X[nonMissingIndices[i]][featureIdx] as
+						| string
+						| number;
+				}
+				const uniqueCategories = Array.from(new Set(featureValues_cat));
 				if (uniqueCategories.length <= 1) continue;
 
 				const potentialCategorySplits: Set<string | number>[] = [];
@@ -479,23 +496,30 @@ export abstract class BaseDecisionTree<
 						if (firstClass === undefined) continue; // Should not happen if y_nonMissing is not empty
 
 						for (const cat of uniqueCategories) {
-							const yForCat = nonMissingData
-								.filter((d) => d.value === cat)
-								.map((d) => d.target) as YInputClassification;
-							if (yForCat.length === 0) continue;
-							const probFirstClass =
-								yForCat.filter((label) => label === firstClass).length /
-								yForCat.length;
+							let countFirstClass = 0;
+							let countCat = 0;
+							for (let i = 0; i < nNonMissing; i++) {
+								if (featureValues_cat[i] === cat) {
+									countCat++;
+									if (y_nonMissing[i] === firstClass) countFirstClass++;
+								}
+							}
+							if (countCat === 0) continue;
+							const probFirstClass = countFirstClass / countCat;
 							categoryMetrics.push({ category: cat, metric: probFirstClass });
 						}
 					} else if (this instanceof DecisionTreeRegressor) {
 						for (const cat of uniqueCategories) {
-							const yForCat = nonMissingData
-								.filter((d) => d.value === cat)
-								.map((d) => Number(d.target)) as YInputRegression;
-							if (yForCat.length === 0) continue;
-							const meanTarget =
-								yForCat.reduce((a, b) => a + b, 0) / yForCat.length;
+							let sumTarget = 0;
+							let countCat = 0;
+							for (let i = 0; i < nNonMissing; i++) {
+								if (featureValues_cat[i] === cat) {
+									countCat++;
+									sumTarget += Number(y_nonMissing[i]);
+								}
+							}
+							if (countCat === 0) continue;
+							const meanTarget = sumTarget / countCat;
 							categoryMetrics.push({ category: cat, metric: meanTarget });
 						}
 					}
@@ -515,62 +539,66 @@ export abstract class BaseDecisionTree<
 					) {
 						continue;
 					}
-					const currentLeft_indices_in_nonMissingData: number[] = [];
-					const currentRight_indices_in_nonMissingData: number[] = [];
-					for (
-						let sampleIdx = 0;
-						sampleIdx < nonMissingData.length;
-						sampleIdx++
-					) {
-						if (leftCategorySet.has(nonMissingData[sampleIdx].value)) {
-							currentLeft_indices_in_nonMissingData.push(sampleIdx);
+
+					// Reuse buffers
+					leftIndicesBuffer.length = 0;
+					rightIndicesBuffer.length = 0;
+
+					for (let sampleIdx = 0; sampleIdx < nNonMissing; sampleIdx++) {
+						if (leftCategorySet.has(featureValues_cat[sampleIdx])) {
+							leftIndicesBuffer.push(sampleIdx);
 						} else {
-							currentRight_indices_in_nonMissingData.push(sampleIdx);
+							rightIndicesBuffer.push(sampleIdx);
 						}
 					}
 
+					const nLeft = leftIndicesBuffer.length;
+					const nRight = rightIndicesBuffer.length;
+
 					if (
-						currentLeft_indices_in_nonMissingData.length <
-							this.minSamplesLeaf ||
-						currentRight_indices_in_nonMissingData.length <
-							this.minSamplesLeaf ||
-						currentLeft_indices_in_nonMissingData.length === 0 ||
-						currentRight_indices_in_nonMissingData.length === 0
+						nLeft < this.minSamplesLeaf ||
+						nRight < this.minSamplesLeaf ||
+						nLeft === 0 ||
+						nRight === 0
 					) {
 						continue;
 					}
 
-					const yLeft = currentLeft_indices_in_nonMissingData.map(
-						(idx) => nonMissingData[idx].target,
-					) as Y_IN;
-					const yRight = currentRight_indices_in_nonMissingData.map(
-						(idx) => nonMissingData[idx].target,
-					) as Y_IN;
+					// Build y arrays efficiently
+					yLeftBuffer.length = 0;
+					yRightBuffer.length = 0;
+					for (let j = 0; j < nLeft; j++) {
+						yLeftBuffer.push(y_nonMissing[leftIndicesBuffer[j]]);
+					}
+					for (let j = 0; j < nRight; j++) {
+						yRightBuffer.push(y_nonMissing[rightIndicesBuffer[j]]);
+					}
 
-					const impurityLeft = this.calculateImpurity(yLeft);
-					const impurityRight = this.calculateImpurity(yRight);
-					const pLeft =
-						currentLeft_indices_in_nonMissingData.length /
-						nonMissingData.length;
-					const pRight =
-						currentRight_indices_in_nonMissingData.length /
-						nonMissingData.length;
+					const impurityLeft = this.calculateImpurity(yLeftBuffer as Y_IN);
+					const impurityRight = this.calculateImpurity(yRightBuffer as Y_IN);
+					const pLeft = nLeft / nNonMissing;
+					const pRight = nRight / nNonMissing;
 					const weightedImpurity =
 						pLeft * impurityLeft + pRight * impurityRight;
 					const impurityGain = parentImpurity_nonMissing - weightedImpurity;
 
 					if (impurityGain > bestGainForThisFeature) {
 						bestGainForThisFeature = impurityGain;
+						// Map back to original indices
+						const leftOriginalIndices = new Array(nLeft);
+						for (let j = 0; j < nLeft; j++) {
+							leftOriginalIndices[j] = nonMissingIndices[leftIndicesBuffer[j]];
+						}
+						const rightOriginalIndices = new Array(nRight);
+						for (let j = 0; j < nRight; j++) {
+							rightOriginalIndices[j] =
+								nonMissingIndices[rightIndicesBuffer[j]];
+						}
+
 						splitDetailsForThisFeature = {
 							splitCategories: leftCategorySet,
-							leftOriginalIndices_nonMissing:
-								currentLeft_indices_in_nonMissingData.map(
-									(idx) => nonMissingData[idx].originalIndex,
-								),
-							rightOriginalIndices_nonMissing:
-								currentRight_indices_in_nonMissingData.map(
-									(idx) => nonMissingData[idx].originalIndex,
-								),
+							leftOriginalIndices_nonMissing: leftOriginalIndices,
+							rightOriginalIndices_nonMissing: rightOriginalIndices,
 						};
 					}
 				}
@@ -873,7 +901,7 @@ function deserializeNode<T extends NodeValue>(nodeData: any): Node<T> {
 		options.splitCategories = new Set(nodeData.splitCategories);
 	}
 
-	// @ts-ignore - IDK how to fix this
+	// @ts-expect-error - IDK how to fix this
 	return new Node<T>(options);
 }
 

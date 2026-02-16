@@ -78,7 +78,7 @@ const probabilities = classifier.predictProba(X_test);
 console.log("Probabilities for X_test (Classes sorted alphabetically):");
 
 const uniqueClasses =
-	// @ts-ignore
+	// @ts-expect-error
 	classifier.uniqueClasses_ ||
 	[...new Set(y_train)].sort((a, b) => String(a).localeCompare(String(b)));
 console.log("Class order for probabilities:", uniqueClasses);

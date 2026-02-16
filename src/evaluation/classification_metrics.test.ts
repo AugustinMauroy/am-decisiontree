@@ -187,6 +187,28 @@ describe("Classification Metrics", () => {
 			assert.strictEqual(result, 0);
 		});
 
+		it("should handle false positive (predict positive, actually negative)", () => {
+			const yTrue = ["B", "C"];
+			const yPred = ["A", "A"];
+
+			const result = precisionScore(yTrue, yPred, "A");
+
+			// Both predictions are "A", but neither true value is "A"
+			// TP = 0, FP = 2, Precision = 0 / (0 + 2) = 0
+			assert.strictEqual(result, 0);
+		});
+
+		it("should handle mixed TP and FP", () => {
+			const yTrue = ["A", "B", "A", "C"];
+			const yPred = ["A", "A", "A", "A"];
+
+			const result = precisionScore(yTrue, yPred, "A");
+
+			// TP = 2 (indices 0 and 2), FP = 2 (indices 1 and 3)
+			// Precision = 2 / (2 + 2) = 0.5
+			assert.strictEqual(result, 0.5);
+		});
+
 		it("should throw error for mismatched lengths", () => {
 			const yTrue = ["A", "B"];
 			const yPred = ["A"];
@@ -258,6 +280,15 @@ describe("Classification Metrics", () => {
 				Error,
 				"yTrue and yPred must have the same length.",
 			);
+		});
+
+		it("should return 0 when positive label not present in yTrue", () => {
+			const yTrue = ["B", "C", "B"];
+			const yPred = ["A", "A", "B"];
+
+			const result = recallScore(yTrue, yPred, "A");
+
+			assert.strictEqual(result, 0);
 		});
 	});
 

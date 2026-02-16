@@ -153,6 +153,42 @@ describe("RandomForestClassifier", () => {
 		// @ts-expect-error Accessing protected member for test
 		assert.strictEqual(tree.maxFeaturesForSplit_, 1);
 	});
+
+	it("should create a JSON representation for classifier", () => {
+		const rfc = new RandomForestClassifier({ nEstimators: 3, maxDepth: 2 });
+		const X = [[1], [2], [3], [10], [11], [12]];
+		const y = ["A", "A", "A", "B", "B", "B"];
+
+		rfc.fit(X, y);
+		const json = rfc.toJSON();
+
+		assert.ok(json);
+		assert.ok(typeof json === "string");
+		const parsed = JSON.parse(json);
+		assert.strictEqual(parsed.nEstimators, 3);
+		assert.strictEqual(parsed.bootstrap, true);
+		assert.strictEqual(parsed.treeParams.maxDepth, 2);
+		assert.strictEqual(parsed.trees.length, 3);
+	});
+
+	it("should restore classifier from JSON", () => {
+		const rfc = new RandomForestClassifier({ nEstimators: 3, maxDepth: 2 });
+		const X = [[1], [2], [3], [10], [11], [12]];
+		const y = ["A", "A", "A", "B", "B", "B"];
+
+		rfc.fit(X, y);
+		const json = rfc.toJSON();
+
+		const restoredRfc = new RandomForestClassifier();
+		restoredRfc.fromJSON(json);
+		assert.ok(restoredRfc instanceof RandomForestClassifier);
+
+		// make a prediction to check if it works
+		const predictions = restoredRfc.predict([[1.5], [10.5]]);
+		assert.strictEqual(predictions.length, 2);
+		assert.ok(["A", "B"].includes(predictions[0] as string));
+		assert.ok(["A", "B"].includes(predictions[1] as string));
+	});
 });
 
 describe("RandomForestRegressor", () => {

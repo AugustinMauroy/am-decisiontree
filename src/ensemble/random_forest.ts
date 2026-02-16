@@ -1,11 +1,13 @@
 import {
 	DecisionTreeClassifier,
 	DecisionTreeRegressor,
-	type BaseDecisionTree,
-	type DecisionTreeParameters,
-	type XInput,
-	type YInputClassification,
-	type YInputRegression,
+} from "../decision_tree.ts";
+import type {
+	BaseDecisionTree,
+	DecisionTreeParameters,
+	XInput,
+	YInputClassification,
+	YInputRegression,
 } from "../decision_tree.ts";
 import type { NodeValue } from "../node.ts";
 

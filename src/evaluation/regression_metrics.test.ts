@@ -34,6 +34,17 @@ describe("Regression Metrics", { concurrency: true }, () => {
 
 			assert.strictEqual(result, 1);
 		});
+
+		it("should throw error for mismatched lengths", () => {
+			const yTrue = [1, 2, 3];
+			const yPred = [1, 2];
+
+			assert.throws(
+				() => meanAbsoluteError(yTrue, yPred),
+				Error,
+				"yTrue and yPred must have the same length.",
+			);
+		});
 	});
 
 	describe("Mean Squared Error", () => {
@@ -62,6 +73,17 @@ describe("Regression Metrics", { concurrency: true }, () => {
 			const result = meanSquaredError(yTrue, yPred);
 
 			assert.strictEqual(result, 1);
+		});
+
+		it("should throw error for mismatched lengths", () => {
+			const yTrue = [1, 2, 3];
+			const yPred = [1, 2];
+
+			assert.throws(
+				() => meanSquaredError(yTrue, yPred),
+				Error,
+				"yTrue and yPred must have the same length.",
+			);
 		});
 	});
 
@@ -116,6 +138,17 @@ describe("Regression Metrics", { concurrency: true }, () => {
 
 			assert.strictEqual(rSquared(yTrue, yPredPerfect), 1);
 			assert.strictEqual(rSquared(yTrue, yPredImperfect), 0); // Or some other value depending on convention
+		});
+
+		it("should throw error for mismatched lengths", () => {
+			const yTrue = [1, 2, 3];
+			const yPred = [1, 2];
+
+			assert.throws(
+				() => rSquared(yTrue, yPred),
+				Error,
+				"yTrue and yPred must have the same length.",
+			);
 		});
 	});
 });
