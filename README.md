@@ -7,6 +7,8 @@
 
 The library is designed to be cross-runtime compatible, allowing usage in [Node.js](https://nodejs.org), [Deno](https://deno.com), [Bun](https://bun.sh), and modern browsers.
 
+> **✅ Feature Complete**: This package is considered feature complete for v1.x. All core functionality including decision trees, random forests, comprehensive splitting criteria, pruning, and evaluation metrics are fully implemented and production-ready.
+
 ## Key Features
 
 * **Classification and Regression Trees**: Implements `DecisionTreeClassifier` for categorical targets and `DecisionTreeRegressor` for continuous targets.
