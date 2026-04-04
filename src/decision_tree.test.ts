@@ -440,7 +440,10 @@ describe("DecisionTreeClassifier", () => {
 		// @ts-expect-error
 		const originalPrune = classifier._pruneRecursive.bind(classifier);
 		// @ts-expect-error
-		classifier._pruneRecursive = (node: Node, ccpAlpha: number) => {
+		classifier._pruneRecursive = (
+			node: Node<Record<string | number, number>>,
+			ccpAlpha: number,
+		) => {
 			if (node === leftChild || node === rightChild) {
 				return { totalImpuritySum: 0, numLeaves: 0 };
 			}
