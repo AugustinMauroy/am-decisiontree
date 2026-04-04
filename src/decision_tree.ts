@@ -1048,8 +1048,9 @@ export class DecisionTreeClassifier extends BaseDecisionTree<
 			this._predictSample(sample, this.root),
 		);
 
+		const uniqueClasses = this.uniqueClasses_;
 		return probaMapPredictions.map((probMap) => {
-			return this.uniqueClasses_?.map((cls) => probMap[String(cls)] || 0);
+			return uniqueClasses!.map((cls) => probMap[String(cls)] || 0);
 		});
 	}
 
